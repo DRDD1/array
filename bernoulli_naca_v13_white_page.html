@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bernoulli (Inviscid) | Area colour map + streamlines</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --ink:#111827;
+      --muted:#4b5563;
+      --line:#d1d5db;
+    }
+    html,body{height:100%;}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      display:flex;
+      justify-content:center;
+    }
+    .wrap{
+      width:min(1100px, 96vw);
+      padding:18px 12px 28px;
+    }
+    h1{
+      margin: 6px 0 14px;
+      font-weight: 650;
+      letter-spacing: .3px;
+      font-size: 28px;
+      text-transform: lowercase;
+    }
+    .card{
+      background: #ffffff;
+      border:1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 10px 25px rgba(0,0,0,.10);
+    }
+    .row{ display:grid; grid-template-columns: 1fr; gap: 12px; }
+    .controls{
+      margin-top: 12px;
+      display:grid;
+      grid-template-columns: 1.1fr 1fr 1fr 1fr;
+      gap: 12px;
+      align-items:end;
+    }
+    @media (max-width: 980px){ .controls{ grid-template-columns: 1fr 1fr; } }
+    label{ display:block; font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+    input, select, button{
+      width:100%;
+      box-sizing:border-box;
+      border-radius: 10px;
+      border:1px solid var(--line);
+      background: #ffffff;
+      color: var(--ink);
+      padding: 10px 10px;
+      outline:none;
+      font-size: 14px;
+    }
+    .inline-note{
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    button{ cursor:pointer; transition: transform .04s ease, border-color .2s ease; }
+    button:hover{ border-color: rgba(107,220,255,.55); }
+    button:active{ transform: translateY(1px); }
+    .toggle{ display:flex; gap:10px; }
+    .toggle button{ flex:1; background: #f3f4f6; }
+    .toggle button.active{
+      border-color: rgba(59,130,246,.85);
+      box-shadow: 0 0 0 2px rgba(59,130,246,.18) inset;
+    }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>bernoulli</h1>
+
+    <div class="card row">
+      <svg id="viz" viewBox="0 0 980 420" width="100%" height="auto" role="img" aria-label="Bernoulli area colour map with streamlines around NACA aerofoil">
+        <defs>
+          <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#0e1723"/>
+            <stop offset="100%" stop-color="#0a0f16"/>
+          </linearGradient>
+
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(17,24,39,.45)"></path>
+          </marker>
+
+          <clipPath id="chartClip">
+            <rect x="14" y="14" width="790" height="392" rx="12" ry="12"></rect>
+          </clipPath>
+
+          <filter id="softenMap" x="-10%" y="-10%" width="120%" height="120%">
+            <feGaussianBlur stdDeviation="0.15"/>
+          </filter>
+        </defs>
+
+        <rect x="10" y="10" width="960" height="400" rx="16" ry="16" fill="none" stroke="#d1d5db" stroke-width="2"/>
+
+        <g>
+          <rect x="14" y="14" width="790" height="392" rx="12" ry="12" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
+
+          <!-- faint grid -->
+          <g opacity="0.05">
+            <g stroke="#cbd5e1" stroke-width="1">
+              <line x1="114" y1="14" x2="114" y2="406"/>
+              <line x1="214" y1="14" x2="214" y2="406"/>
+              <line x1="314" y1="14" x2="314" y2="406"/>
+              <line x1="414" y1="14" x2="414" y2="406"/>
+              <line x1="514" y1="14" x2="514" y2="406"/>
+              <line x1="614" y1="14" x2="614" y2="406"/>
+              <line x1="714" y1="14" x2="714" y2="406"/>
+            </g>
+            <g stroke="#cbd5e1" stroke-width="1">
+              <line x1="14" y1="84" x2="804" y2="84"/>
+              <line x1="14" y1="154" x2="804" y2="154"/>
+              <line x1="14" y1="224" x2="804" y2="224"/>
+              <line x1="14" y1="294" x2="804" y2="294"/>
+              <line x1="14" y1="364" x2="804" y2="364"/>
+            </g>
+          </g>
+
+          <g clip-path="url(#chartClip)">
+            <g opacity="0.9">
+              <text x="28" y="38" fill="#4b5563" font-size="12">Inlet</text>
+              <line x1="20" y1="50" x2="90" y2="50" stroke="rgba(230,238,247,.25)" stroke-width="2" marker-end="url(#arrow)"/>
+            </g>
+
+            
+            <!-- Area colour map (built by JS) -->
+            <g id="fieldMap" filter="url(#softenMap)"></g>
+
+            <!-- Streamlines as direction hints (thin, neutral) -->
+            <g id="streamHint" fill="none" stroke="rgba(17,24,39,.28)" stroke-width="1.6" opacity="0.85">
+              <path d="M 18 80  C 200 70, 285 55, 360 48  C 450 40, 520 48, 600 66  C 680 84, 750 100, 804 110" vector-effect="non-scaling-stroke"/>
+              <path d="M 18 115 C 200 108, 285 92, 360 80  C 448 66, 520 74, 600 92  C 680 110, 750 128, 804 140" vector-effect="non-scaling-stroke"/>
+              <path d="M 18 150 C 195 150, 275 140, 350 128 C 442 112, 520 114, 604 130 C 686 146, 754 164, 804 175" vector-effect="non-scaling-stroke"/>
+              <path d="M 18 210 C 210 210, 300 208, 380 200 C 450 193, 520 192, 600 202 C 680 212, 750 224, 804 232" vector-effect="non-scaling-stroke"/>
+              <path d="M 18 260 C 200 270, 286 282, 360 292 C 448 304, 520 300, 600 286 C 680 272, 750 262, 804 256" vector-effect="non-scaling-stroke"/>
+              <path d="M 18 300 C 200 315, 288 330, 362 345 C 452 362, 520 352, 600 330 C 680 308, 750 292, 804 284" vector-effect="non-scaling-stroke"/>
+              <path d="M 18 345 C 200 370, 288 394, 364 408 C 460 426, 530 402, 610 360 C 690 318, 754 300, 804 294" vector-effect="non-scaling-stroke"/>
+            </g>
+
+            <!-- Aerofoil -->
+            <g id="aerofoilGroup">
+              <path id="aerofoilShadow" d="" fill="rgba(0,0,0,.10)"/>
+              <path id="aerofoil" d="" fill="rgba(31,41,55,.18)" stroke="rgba(17,24,39,.70)" stroke-width="2"/>
+              <circle id="stag" cx="320" cy="210" r="3.2" fill="#ffcc66" opacity="0.9"/>
+            </g>
+
+            <g opacity="0.9">
+              <text x="34" y="398" fill="#4b5563" font-size="12">Inviscid, steady, along a streamline</text>
+            </g>
+          </g>
+        </g>
+
+        <!-- Legend -->
+        <g transform="translate(820, 22)">
+          <rect x="0" y="0" width="140" height="376" rx="12" ry="12" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
+          <text x="14" y="26" fill="#111827" font-size="14" font-weight="600">Legend</text>
+          <text id="legendMode" x="14" y="48" fill="#4b5563" font-size="12">Colour: velocity</text>
+
+          <g id="colourBar" transform="translate(16,66)"></g>
+
+          <text id="legendMax" x="48" y="84" fill="#111827" font-size="12" font-weight="600">max</text>
+          <text id="legendMin" x="48" y="322" fill="#111827" font-size="12" font-weight="600">min</text>
+
+          <text x="14" y="346" fill="#4b5563" font-size="12">
+            <tspan id="legendHint" x="14" dy="0">ρ = 1.225 kg/m³</tspan>
+          </text>
+          <text x="14" y="368" fill="#111827" font-size="13" font-weight="600">
+            <tspan id="legendNums" x="14" dy="0">v: 0 to 0 m/s</tspan>
+          </text>
+
+          <text x="14" y="392" fill="#4b5563" font-size="11">
+            <tspan x="14" dy="0">p + ½ρv² + ρgz = const</tspan>
+          </text>
+        </g>
+      </svg>
+
+      <div class="controls" aria-label="Inputs">
+        <div>
+          <label for="vel">Inlet velocity of stream (m/s)</label>
+          <input id="vel" type="number" step="0.1" min="0" value="10" />
+        </div>
+
+        <div>
+          <label for="pin">Inlet pressure (bar)</label>
+          <input id="pin" type="text" value="1.0" readonly />
+        </div>
+
+        <div>
+          <label for="naca">NACA choice</label>
+          <select id="naca">
+            <option value="0012">NACA 0012 (symmetric)</option>
+            <option value="2412" selected>NACA 2412 (cambered)</option>
+            <option value="4412">NACA 4412 (more camber)</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Colour mode</label>
+          <div class="toggle" role="group" aria-label="Pressure or velocity colouring">
+            <button id="btnVel" class="active" type="button">Velocity</button>
+            <button id="btnP" type="button">Pressure</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="inline-note">
+        The chart now shows a full-area colour map (velocity or pressure) with streamlines used only as a direction cue.
+        Pressure is computed from Bernoulli at constant elevation:
+        <span class="mono">p = p_in + ½ρ(v_in² − v²)</span>. Values are illustrative, not CFD.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const elVel = document.getElementById('vel');
+    const elNaca = document.getElementById('naca');
+    const btnVel = document.getElementById('btnVel');
+    const btnP = document.getElementById('btnP');
+
+    const legendMode = document.getElementById('legendMode');
+    const legendHint = document.getElementById('legendHint');
+    const legendNums = document.getElementById('legendNums');
+    const legendMax = document.getElementById('legendMax');
+    const legendMin = document.getElementById('legendMin');
+    const colourBar = document.getElementById('colourBar');
+
+    const fieldMap = document.getElementById('fieldMap');
+    const aerofoil = document.getElementById('aerofoil');
+    const aerofoilShadow = document.getElementById('aerofoilShadow');
+    const stag = document.getElementById('stag');
+
+    const rho = 1.225;
+    const pIn_bar = 1.0;
+    const pIn_Pa  = pIn_bar * 1e5;
+
+    const chart = { x0: 14, y0: 14, w: 790, h: 392 };
+    const xLE = 300;
+    const yMid = 210;
+    const chordPx = 360;
+
+    let mode = 'velocity';
+
+    // High-contrast palette (blue -> cyan -> yellow -> red)
+    const palette = [
+      {t:0.00, c:[ 40,110,255]},
+      {t:0.45, c:[ 70,255,255]},
+      {t:0.70, c:[255,230, 90]},
+      {t:1.00, c:[255, 70,115]}
+    ];
+
+    function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
+    function lerp(a,b,t){ return a + (b-a)*t; }
+
+    function colourAt(u){
+      u = clamp(u, 0, 1);
+      let a = palette[0], b = palette[palette.length-1];
+      for(let i=0;i<palette.length-1;i++){
+        if(u >= palette[i].t && u <= palette[i+1].t){ a = palette[i]; b = palette[i+1]; break; }
+      }
+      const tt = (u - a.t) / (b.t - a.t + 1e-12);
+      const r = Math.round(lerp(a.c[0], b.c[0], tt));
+      const g = Math.round(lerp(a.c[1], b.c[1], tt));
+      const b2= Math.round(lerp(a.c[2], b.c[2], tt));
+      return `rgb(${r},${g},${b2})`;
+    }
+
+    function naca4Path(code, opts){
+      const m = parseInt(code[0], 10) / 100.0;
+      const p = parseInt(code[1], 10) / 10.0;
+      const t = parseInt(code.slice(2), 10) / 100.0;
+
+      const n = (opts && opts.n) ? opts.n : 90;
+      const c = 1.0;
+      const xs = [];
+      for(let i=0;i<=n;i++){
+        const beta = Math.PI * i / n;
+        xs.push((c/2) * (1 - Math.cos(beta)));
+      }
+
+      function thickness(x){
+        const xc = x/c;
+        return 5*t*c * (0.2969*Math.sqrt(xc) - 0.1260*xc - 0.3516*xc*xc + 0.2843*xc*xc*xc - 0.1015*xc*xc*xc*xc);
+      }
+
+      function camberLine(x){
+        const xc = x/c;
+        if(m === 0 || p === 0) return { yc: 0, dyc: 0 };
+        if(xc < p){
+          const yc = (m/(p*p)) * (2*p*xc - xc*xc);
+          const dyc = (2*m/(p*p)) * (p - xc);
+          return { yc: yc*c, dyc: dyc };
+        }else{
+          const yc = (m/((1-p)*(1-p))) * ((1 - 2*p) + 2*p*xc - xc*xc);
+          const dyc = (2*m/((1-p)*(1-p))) * (p - xc);
+          return { yc: yc*c, dyc: dyc };
+        }
+      }
+
+      const upper = [];
+      const lower = [];
+      for(const x of xs){
+        const yt = thickness(x);
+        const { yc, dyc } = camberLine(x);
+        const theta = Math.atan(dyc);
+        upper.push([x - yt*Math.sin(theta), yc + yt*Math.cos(theta)]);
+        lower.push([x + yt*Math.sin(theta), yc - yt*Math.cos(theta)]);
+      }
+
+      const pts = [...upper, ...lower.reverse()];
+      let d = '';
+      for(let i=0;i<pts.length;i++){
+        const [x,y] = pts[i];
+        d += (i===0 ? 'M' : 'L') + ' ' + x.toFixed(5) + ' ' + y.toFixed(5) + ' ';
+      }
+      return (d + 'Z').trim();
+    }
+
+    function placeAerofoil(code){
+      const local = naca4Path(code, { n: 100 });
+      const aoaDeg = 4;
+
+      aerofoil.setAttribute('d', local);
+      aerofoilShadow.setAttribute('d', local);
+
+      const tf = `translate(${xLE} ${yMid}) rotate(${-aoaDeg}) scale(${chordPx} ${-chordPx}) translate(0 0)`;
+      aerofoil.setAttribute('transform', tf);
+      aerofoilShadow.setAttribute('transform', `translate(${xLE+3} ${yMid+4}) rotate(${-aoaDeg}) scale(${chordPx} ${-chordPx}) translate(0 0)`);
+
+      stag.setAttribute('cx', xLE + 8);
+      stag.setAttribute('cy', yMid + 2);
+    }
+
+    function profileFactor(code){
+      if(code === '0012') return 0.55;
+      if(code === '2412') return 0.75;
+      if(code === '4412') return 0.95;
+      return 0.75;
+    }
+
+    function localSpeed(x, y, vIn, code){
+      const s = profileFactor(code);
+      const xi = (x - xLE) / chordPx;
+
+      const xc = 0.35;
+      const wx = 0.22;
+      const gx = Math.exp(-((xi - xc)*(xi - xc)) / (2*wx*wx));
+
+      const dy = (y - yMid) / 120.0;
+      const gy = Math.exp(-(dy*dy));
+
+      const upper = (y < yMid) ? 1.0 : 0.55;
+
+      const k = (0.95 * s) * upper;
+      return Math.max(0.0, vIn * (1.0 + k * gx * gy));
+    }
+
+    function pressureFromBernoulli(v, vIn){
+      return pIn_Pa + 0.5 * rho * (vIn*vIn - v*v);
+    }
+
+    function buildColourBar(){
+      while(colourBar.firstChild) colourBar.removeChild(colourBar.firstChild);
+
+      const steps = 44;
+      const w = 22, h = 260;
+      const dh = h / steps;
+
+      for(let i=0;i<steps;i++){
+        const u = 1 - (i/(steps-1));
+        const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+        rect.setAttribute('x','0');
+        rect.setAttribute('y', (i*dh).toFixed(2));
+        rect.setAttribute('width', w);
+        rect.setAttribute('height', (dh + 0.8).toFixed(2));
+        rect.setAttribute('fill', colourAt(u));
+        rect.setAttribute('opacity','0.98');
+        colourBar.appendChild(rect);
+      }
+
+      const outline = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      outline.setAttribute('x','0');
+      outline.setAttribute('y','0');
+      outline.setAttribute('width', w);
+      outline.setAttribute('height', h);
+      outline.setAttribute('rx','6');
+      outline.setAttribute('ry','6');
+      outline.setAttribute('fill','none');
+      outline.setAttribute('stroke','rgba(230,238,247,.22)');
+      outline.setAttribute('stroke-width','1');
+      colourBar.appendChild(outline);
+    }
+
+    function buildFieldMap(){
+      while(fieldMap.firstChild) fieldMap.removeChild(fieldMap.firstChild);
+
+      const vIn = Math.max(0, parseFloat(elVel.value || '0'));
+      const code = elNaca.value;
+
+      // Grid resolution: trade-off between quality and speed on mobile
+      const nx = 110;            // columns
+      const ny = 54;             // rows
+      const dx = chart.w / nx;
+      const dy = chart.h / ny;
+
+      // First pass: estimate extrema over the grid
+      let vMin = Infinity, vMax = -Infinity;
+      let pMin = Infinity, pMax = -Infinity;
+
+      for(let j=0;j<ny;j++){
+        const y = chart.y0 + (j + 0.5) * dy;
+        for(let i=0;i<nx;i++){
+          const x = chart.x0 + (i + 0.5) * dx;
+          const v = localSpeed(x, y, vIn, code);
+          const p = pressureFromBernoulli(v, vIn);
+          vMin = Math.min(vMin, v); vMax = Math.max(vMax, v);
+          pMin = Math.min(pMin, p); pMax = Math.max(pMax, p);
+        }
+      }
+
+      if(!isFinite(vMin) || !isFinite(vMax) || vMax - vMin < 1e-9){ vMin = 0; vMax = Math.max(1e-6, vIn); }
+      if(!isFinite(pMin) || !isFinite(pMax) || pMax - pMin < 1e-3){ pMin = pIn_Pa; pMax = pIn_Pa; }
+
+      // Second pass: draw rectangles
+      // Use a mild gamma to make contrast visible.
+      const gamma = 0.60;
+
+      for(let j=0;j<ny;j++){
+        const y = chart.y0 + j * dy;
+        for(let i=0;i<nx;i++){
+          const x = chart.x0 + i * dx;
+          const xc = x + 0.5 * dx;
+          const yc = y + 0.5 * dy;
+
+          const v = localSpeed(xc, yc, vIn, code);
+          const p = pressureFromBernoulli(v, vIn);
+
+          let u = 0;
+          if(mode === 'velocity'){
+            u = (v - vMin) / (vMax - vMin);
+          }else{
+            u = (p - pMin) / (pMax - pMin);
+          }
+          u = clamp(u, 0, 1);
+          u = Math.pow(u, gamma);
+
+          const r = document.createElementNS('http://www.w3.org/2000/svg','rect');
+          r.setAttribute('x', x.toFixed(2));
+          r.setAttribute('y', y.toFixed(2));
+          r.setAttribute('width', dx.toFixed(2));
+          r.setAttribute('height', dy.toFixed(2));
+          r.setAttribute('fill', colourAt(u));
+          r.setAttribute('opacity', '1.0');
+          fieldMap.appendChild(r);
+        }
+      }
+
+      buildColourBar();
+
+      if(mode === 'velocity'){
+        legendMode.textContent = 'Colour: velocity';
+        legendHint.textContent = `ρ = ${rho.toFixed(3)} kg/m³`;
+        legendNums.textContent = `v: ${vMin.toFixed(2)} to ${vMax.toFixed(2)} m/s`;
+        legendMax.textContent = `${vMax.toFixed(2)} m/s`;
+        legendMin.textContent = `${vMin.toFixed(2)} m/s`;
+      }else{
+        legendMode.textContent = 'Colour: pressure';
+        legendHint.textContent = `ρ = ${rho.toFixed(3)} kg/m³`;
+        legendNums.textContent = `p: ${(pMin/1e5).toFixed(4)} to ${(pMax/1e5).toFixed(4)} bar`;
+        legendMax.textContent = `${(pMax/1e5).toFixed(4)} bar`;
+        legendMin.textContent = `${(pMin/1e5).toFixed(4)} bar`;
+      }
+    }
+
+    function setMode(newMode){
+      mode = newMode;
+      btnVel.classList.toggle('active', mode === 'velocity');
+      btnP.classList.toggle('active', mode === 'pressure');
+      buildFieldMap();
+    }
+
+    // Events
+    elVel.addEventListener('input', buildFieldMap);
+    elNaca.addEventListener('change', () => { placeAerofoil(elNaca.value); buildFieldMap(); });
+    btnVel.addEventListener('click', () => setMode('velocity'));
+    btnP.addEventListener('click', () => setMode('pressure'));
+
+    // Init
+    placeAerofoil(elNaca.value);
+    buildFieldMap();
+  </script>
+</body>
+</html>

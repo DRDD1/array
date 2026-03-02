@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Rolling Julia Fractal (CMY)</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; height: 100%; background: #0b0b10; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    #wrap { height: 100%; display: grid; grid-template-rows: auto 1fr; }
+    #bar{
+      display:flex; align-items:center; gap:12px;
+      padding:10px 12px; background: rgba(10,10,16,0.95);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    #bar .left{ flex:1; min-width:0; }
+    #title{ font-weight:650; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #hint{ font-size:12px; opacity:0.75; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #bar .right{ display:flex; gap:10px; align-items:center; }
+    label{ font-size:12px; opacity:0.9; }
+    input[type="range"]{ width:140px; }
+    button{
+      border:1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.06);
+      color:#fff; border-radius:10px; padding:7px 10px; font-size:12px;
+    }
+    #canvas{ width:100%; height:100%; display:block; touch-action:none; }
+    #toast{
+      position:fixed; left:12px; right:12px; bottom:12px;
+      padding:10px 12px; border-radius:12px;
+      background: rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.12);
+      font-size:12px; opacity:0; pointer-events:none; transition: opacity 220ms ease;
+    }
+    #toast.show{ opacity:1; }
+  </style>
+</head>
+<body>
+<div id="wrap">
+  <div id="bar">
+    <div class="left">
+      <div id="title">Rolling Julia Fractal (CMY)</div>
+      <div id="hint">Drag to pan, pinch or wheel to zoom. Double-tap/click: new Julia constant</div>
+    </div>
+    <div class="right">
+      <label for="rot">Rotation</label>
+      <input id="rot" type="range" min="-180" max="180" value="0" step="1" />
+      <button id="autoBtn" aria-pressed="true">Autopilot: ON</button>
+      <button id="resetBtn">Reset</button>
+    </div>
+  </div>
+  <canvas id="canvas"></canvas>
+</div>
+<div id="toast"></div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('canvas');
+  const toast = document.getElementById('toast');
+
+  const gl = canvas.getContext('webgl', { antialias:false, preserveDrawingBuffer:false });
+  if (!gl) {
+    document.body.innerHTML = "<div style='padding:16px;color:white'>WebGL not available.</div>";
+    return;
+  }
+
+  const vertSrc = `
+    attribute vec2 a_pos;
+    void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+  `;
+
+  // NOTE: highp fixes "all black" on many mobile GPUs (mediump can collapse the orbit maths).
+  const fragSrc = `
+    precision highp float;
+
+    uniform vec2  u_res;
+    uniform float u_time;
+    uniform vec2  u_center;
+    uniform float u_scale;
+    uniform float u_rot;
+    uniform vec2  u_c;
+    uniform float u_auto;
+
+    const int MAX_ITER = 320;
+
+    float hash12(vec2 p) {
+      vec3 p3  = fract(vec3(p.xyx) * 0.1031);
+      p3 += dot(p3, p3.yzx + 33.33);
+      return fract((p3.x + p3.y) * p3.z);
+    }
+
+    vec2 rot(vec2 v, float a){
+      float s = sin(a), c = cos(a);
+      return vec2(c*v.x - s*v.y, s*v.x + c*v.y);
+    }
+
+    float circDist(float a, float b){
+      float d = abs(a-b);
+      return min(d, 6.28318530718 - d);
+    }
+
+    vec3 cmyMix(float angle){
+      float a = mod(angle + 6.28318530718, 6.28318530718);
+      float softness = 0.35;
+
+      float dC = circDist(a, 0.0);
+      float dM = circDist(a, 2.09439510239);
+      float dY = circDist(a, 4.18879020479);
+
+      float wC = exp(-dC/softness);
+      float wM = exp(-dM/softness);
+      float wY = exp(-dY/softness);
+      float s = wC+wM+wY+1e-6;
+      wC/=s; wM/=s; wY/=s;
+
+      vec3 C = vec3(0.05, 0.95, 0.95);
+      vec3 M = vec3(0.95, 0.10, 0.95);
+      vec3 Y = vec3(0.95, 0.95, 0.05);
+      return wC*C + wM*M + wY*Y;
+    }
+
+    void main(){
+      // Normalised coords; aspect-corrected so it does NOT look stretched ("too wide")
+      vec2 uv = (gl_FragCoord.xy / u_res) * 2.0 - 1.0;
+      uv.x *= u_res.x / u_res.y;
+
+      // View rotation + mapping into complex plane
+      vec2 p = rot(uv, u_rot);
+      vec2 z = u_center + p * u_scale;
+
+      // Iterations: mobile-safe but richer than the minimal version
+      float px = max(u_res.x, u_res.y);
+      float itf = 170.0 + 70.0 * log2(px/700.0 + 1.0);
+      int maxIter = int(clamp(itf, 180.0, float(MAX_ITER)));
+
+      int iEsc = maxIter;
+      float m2 = dot(z,z);
+
+      for (int i=0; i<MAX_ITER; i++){
+        if (i >= maxIter) { iEsc = maxIter; break; }
+        // z = z^2 + c
+        z = vec2(z.x*z.x - z.y*z.y, 2.0*z.x*z.y) + u_c;
+        m2 = dot(z,z);
+        if (m2 > 16.0) { iEsc = i; break; }
+      }
+
+      if (iEsc == maxIter){
+        float n = hash12(gl_FragCoord.xy + u_time*11.0);
+        vec3 paper = vec3(0.02,0.02,0.03) + (n-0.5)*0.02;
+        gl_FragColor = vec4(paper, 1.0);
+        return;
+      }
+
+      // Colouring (CMY sectors + mixing)
+      float ang = atan(z.y, z.x);
+      vec3 base = cmyMix(ang);
+
+      // Print-like banding + subtle dither
+      float t = float(iEsc) / float(maxIter);
+      float bands = 16.0 + 10.0 * u_auto;
+      float q = floor(t * bands) / bands;
+      float d = (hash12(gl_FragCoord.xy*0.8 + u_time*7.0) - 0.5) * (1.0 / bands);
+
+      float v = pow(q + d, 0.55);
+      vec3 col = base * (0.25 + 0.95 * v);
+
+      // Edge glow (near boundary brighter)
+      float edge = smoothstep(0.0, 0.08, 1.0 - t);
+      col += edge * 0.18;
+
+      // Light vignette
+      float r = length(uv);
+      col *= 1.0 - 0.20 * smoothstep(0.65, 1.25, r);
+
+      gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+    }
+  `;
+
+  function compile(type, src){
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      const log = gl.getShaderInfoLog(s) || "Shader compile error";
+      throw new Error(log);
+    }
+    return s;
+  }
+
+  function link(vs, fs){
+    const p = gl.createProgram();
+    gl.attachShader(p, vs);
+    gl.attachShader(p, fs);
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+      const log = gl.getProgramInfoLog(p) || "Program link error";
+      throw new Error(log);
+    }
+    return p;
+  }
+
+  let program;
+  try {
+    program = link(compile(gl.VERTEX_SHADER, vertSrc), compile(gl.FRAGMENT_SHADER, fragSrc));
+  } catch (e) {
+    document.body.innerHTML = "<pre style='padding:16px;color:white;white-space:pre-wrap'>" + e.message + "</pre>";
+    return;
+  }
+
+  gl.useProgram(program);
+
+  // Fullscreen quad
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1, 1,  -1, 1, 1,-1, 1, 1]), gl.STATIC_DRAW);
+
+  const aPos = gl.getAttribLocation(program, "a_pos");
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  // Uniform locations
+  const uRes    = gl.getUniformLocation(program, "u_res");
+  const uTime   = gl.getUniformLocation(program, "u_time");
+  const uCenter = gl.getUniformLocation(program, "u_center");
+  const uScale  = gl.getUniformLocation(program, "u_scale");
+  const uRot    = gl.getUniformLocation(program, "u_rot");
+  const uC      = gl.getUniformLocation(program, "u_c");
+  const uAuto   = gl.getUniformLocation(program, "u_auto");
+
+  // State
+  let dpr = 1;
+  let center = { x: 0.0, y: 0.0 };
+  let scale = 1.8;
+  let rotDeg = 0;
+  let auto = true;
+
+  // Julia constant
+  let c = { x: -0.745, y: 0.113 };
+
+  // Autopilot target
+  let target = { x: center.x, y: center.y, scale: scale };
+  let phase = 0;
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add("show");
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => toast.classList.remove("show"), 1100);
+  }
+
+  function resize(){
+    // Proper DPR sizing prevents blur and odd stretching perceptions
+    dpr = Math.max(1, Math.min(2.2, window.devicePixelRatio || 1));
+    const w = Math.max(1, Math.floor(canvas.clientWidth  * dpr));
+    const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w; canvas.height = h;
+      gl.viewport(0,0,w,h);
+    }
+  }
+  window.addEventListener("resize", resize, { passive:true });
+  resize();
+
+  // UI
+  document.getElementById("rot").addEventListener("input", (e) => {
+    rotDeg = +e.target.value;
+  }, { passive:true });
+
+  const autoBtn = document.getElementById("autoBtn");
+  autoBtn.addEventListener("click", () => {
+    auto = !auto;
+    autoBtn.textContent = "Autopilot: " + (auto ? "ON" : "OFF");
+    autoBtn.setAttribute("aria-pressed", String(auto));
+    showToast(auto ? "Autopilot on" : "Autopilot off");
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", () => {
+    center = { x: 0.0, y: 0.0 };
+    scale = 1.8;
+    target = { x: 0.0, y: 0.0, scale: 1.8 };
+    showToast("Reset");
+  });
+
+  // Interaction (pan/zoom + double tap for new c)
+  let isDown = false;
+  let last = { x:0, y:0 };
+  let lastTap = 0;
+
+  function screenToComplexDelta(dxPx, dyPx){
+    const w = canvas.width, h = canvas.height;
+    const aspect = w / h;
+    let dx = (dxPx / w) * 2.0 * aspect;
+    let dy = -(dyPx / h) * 2.0;
+    const a = rotDeg * Math.PI / 180;
+    const s = Math.sin(a), c0 = Math.cos(a);
+    const ux =  c0*dx + s*dy;
+    const uy = -s*dx + c0*dy;
+    return { x: ux * scale, y: uy * scale };
+  }
+
+  canvas.addEventListener("pointerdown", (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    isDown = true;
+    last.x = e.clientX; last.y = e.clientY;
+
+    const now = performance.now();
+    if (now - lastTap < 320) randomiseC();
+    lastTap = now;
+  });
+
+  canvas.addEventListener("pointermove", (e) => {
+    if (!isDown) return;
+    const dx = (e.clientX - last.x) * dpr;
+    const dy = (e.clientY - last.y) * dpr;
+    last.x = e.clientX; last.y = e.clientY;
+
+    const d = screenToComplexDelta(dx, dy);
+    center.x -= d.x;
+    center.y -= d.y;
+    target.x = center.x; target.y = center.y;
+  }, { passive:true });
+
+  canvas.addEventListener("pointerup",   () => isDown = false, { passive:true });
+  canvas.addEventListener("pointercancel",() => isDown = false, { passive:true });
+
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const zoom = Math.exp(Math.sign(e.deltaY) * 0.14);
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * dpr;
+    const my = (e.clientY - rect.top)  * dpr;
+    zoomAt(mx, my, zoom);
+  }, { passive:false });
+
+  function zoomAt(mx, my, zoom){
+    const w = canvas.width, h = canvas.height;
+    const aspect = w / h;
+
+    let u = (mx / w) * 2.0 - 1.0;
+    let v = (my / h) * 2.0 - 1.0;
+    u *= aspect;
+    v = -v;
+
+    const a = rotDeg * Math.PI / 180;
+    const s = Math.sin(a), c0 = Math.cos(a);
+    const rx = c0*u - s*v;
+    const ry = s*u + c0*v;
+
+    const before = { x: center.x + rx*scale, y: center.y + ry*scale };
+
+    scale *= zoom;
+    scale = Math.max(1e-14, Math.min(6.0, scale));
+
+    const after = { x: center.x + rx*scale, y: center.y + ry*scale };
+
+    center.x += (before.x - after.x);
+    center.y += (before.y - after.y);
+
+    target.x = center.x; target.y = center.y; target.scale = scale;
+  }
+
+  // Touch pinch zoom
+  let touches = new Map();
+  let pinch = null;
+
+  function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
+  function mid(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
+
+  canvas.addEventListener("touchstart", (e) => {
+    for (const t of e.changedTouches) touches.set(t.identifier, { x:t.clientX, y:t.clientY });
+    if (touches.size === 2) {
+      const pts = [...touches.values()];
+      pinch = { d: dist(pts[0], pts[1]), scale, m: mid(pts[0], pts[1]) };
+    }
+  }, { passive:true });
+
+  canvas.addEventListener("touchmove", (e) => {
+    for (const t of e.changedTouches) touches.set(t.identifier, { x:t.clientX, y:t.clientY });
+    if (touches.size === 2 && pinch) {
+      const pts = [...touches.values()];
+      const dNow = dist(pts[0], pts[1]);
+      const mNow = mid(pts[0], pts[1]);
+      const zoom = pinch.d / Math.max(1.0, dNow);
+
+      const rect = canvas.getBoundingClientRect();
+      const mx = (mNow.x - rect.left) * dpr;
+      const my = (mNow.y - rect.top)  * dpr;
+
+      scale = pinch.scale;
+      zoomAt(mx, my, zoom);
+
+      pinch.d = dNow;
+      pinch.scale = scale;
+      pinch.m = mNow;
+    }
+  }, { passive:true });
+
+  canvas.addEventListener("touchend", (e) => {
+    for (const t of e.changedTouches) touches.delete(t.identifier);
+    if (touches.size < 2) pinch = null;
+  }, { passive:true });
+
+  function randomiseC(){
+    // Empirical "interesting" zone
+    const r = 0.72 + Math.random()*0.22;
+    const th = Math.random() * Math.PI * 2;
+    const j = () => (Math.random()-0.5) * 0.08;
+    c.x = -0.2 + r*Math.cos(th) + j();
+    c.y =  0.0 + r*Math.sin(th) + j();
+    showToast("New Julia constant");
+  }
+
+  // Render loop with autopilot drift + zoom
+  let lastT = performance.now();
+  function frame(now){
+    resize();
+    const dt = Math.min(0.05, (now - lastT)/1000);
+    lastT = now;
+
+    if (auto){
+      phase += dt;
+      const drift = 0.12 * scale;
+      target.x += Math.cos(phase*0.23) * drift * dt;
+      target.y += Math.sin(phase*0.19) * drift * dt;
+
+      const zoomRate = 0.18;
+      target.scale *= Math.exp(-zoomRate * dt);
+      target.scale = Math.max(1e-18, target.scale);
+    }
+
+    const k = auto ? 0.55 : 0.25;
+    center.x += (target.x - center.x) * (1.0 - Math.exp(-k*10.0*dt));
+    center.y += (target.y - center.y) * (1.0 - Math.exp(-k*10.0*dt));
+    scale    += (target.scale - scale) * (1.0 - Math.exp(-k*10.0*dt));
+
+    gl.uniform2f(uRes, canvas.width, canvas.height);
+    gl.uniform1f(uTime, now*0.001);
+    gl.uniform2f(uCenter, center.x, center.y);
+    gl.uniform1f(uScale, scale);
+    gl.uniform1f(uRot, rotDeg * Math.PI / 180);
+    gl.uniform2f(uC, c.x, c.y);
+    gl.uniform1f(uAuto, auto ? 1.0 : 0.0);
+
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    requestAnimationFrame(frame);
+  }
+
+  showToast("If you see black: your device needs high precision, this build uses it.");
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

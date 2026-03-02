@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Slide Rule Simulator (C/D)</title>
+<style>
+  body{margin:0;background:#f7f7f7;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  .wrap{max-width:1200px;margin:0 auto;padding:12px}
+  .note{font-size:15px;color:#222;margin:8px 0 12px}
+  .hint{font-size:12px;color:#444;margin-top:8px}
+  svg{width:100%;height:auto;border-radius:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note">Slide rule simulator (C and D scales). Drag anywhere on the control bars below to move the slide and cursor. Double click to reset.</div>
+
+<svg id="sr" xmlns="http://www.w3.org/2000/svg" width="1100" height="420" viewBox="0 0 1100 420"
+     style="background:#f7f7f7; touch-action:none;">
+
+  <rect x="40" y="30" width="1020" height="350" rx="18" ry="18" fill="#ffffff" stroke="#222" stroke-width="2"/>
+
+  <g id="body">
+    <rect x="60" y="55" width="980" height="230" rx="12" ry="12" fill="#fbfbfb" stroke="#333" stroke-width="1.5"/>
+
+    <rect x="70" y="95" width="960" height="55" rx="10" ry="10" fill="#ffffff" stroke="#bbb"/>
+    <text x="78" y="91" font-size="14" fill="#222">C</text>
+
+    <rect x="70" y="175" width="960" height="55" rx="10" ry="10" fill="#ffffff" stroke="#bbb"/>
+    <text x="78" y="171" font-size="14" fill="#222">D</text>
+
+    <g id="ticksD"></g>
+  </g>
+
+  <g id="slide" transform="translate(0,0)">
+    <g id="ticksC"></g>
+  </g>
+
+  <g id="cursor" transform="translate(0,0)">
+    <rect x="70" y="80" width="960" height="190"
+          fill="rgba(180,200,255,0.12)" stroke="#557" stroke-width="1" pointer-events="none"/>
+    <line x1="550" y1="80" x2="550" y2="270" stroke="#0b0b0b" stroke-width="2" pointer-events="none"/>
+  </g>
+
+  <g id="panel">
+    <rect x="70" y="285" width="960" height="24" rx="7" ry="7" fill="#fff" stroke="#bbb"/>
+    <text id="readout" x="82" y="302" font-size="13" fill="#111">
+      Cursor: D = 1.000   C = 1.000   Slide offset = 0 px
+    </text>
+  </g>
+
+  <!-- Larger, more responsive control bars -->
+  <g id="controls">
+    <text x="70" y="330" font-size="14" fill="#222">Slide control</text>
+    <rect id="slideTrack" x="70" y="338" width="960" height="26" rx="13" ry="13"
+          fill="#e8e8e8" stroke="#888" stroke-width="1.5"/>
+
+    <text x="70" y="380" font-size="14" fill="#222">Cursor control</text>
+    <rect id="cursorTrack" x="70" y="388" width="960" height="26" rx="13" ry="13"
+          fill="#e8e8e8" stroke="#888" stroke-width="1.5"/>
+  </g>
+
+<script>
+(function () {
+
+  const svg = document.getElementById('sr');
+
+  const left = 70;
+  const scaleLen = 960;
+
+  const yC_top = 95,  yC_bottom = 150;
+  const yD_top = 175, yD_bottom = 230;
+
+  const slide = document.getElementById('slide');
+  const cursor = document.getElementById('cursor');
+  const ticksD = document.getElementById('ticksD');
+  const ticksC = document.getElementById('ticksC');
+  const readout = document.getElementById('readout');
+
+  const slideTrack = document.getElementById('slideTrack');
+  const cursorTrack = document.getElementById('cursorTrack');
+
+  let slideOffset = 0;
+  let cursorX = left + scaleLen * 0.5;
+
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+  function xToVal(x, offsetPx){
+    const t = (x - left - offsetPx)/scaleLen;
+    return Math.pow(10,t);
+  }
+  function formatVal(v){
+    if(!isFinite(v)||v<=0) return '---';
+    return String(Number(v.toPrecision(4)));
+  }
+
+  const slideMin = -0.9*scaleLen;
+  const slideMax =  0.9*scaleLen;
+
+  function drawTicks(group,yTop,yBottom,labelYOffset){
+    while(group.firstChild) group.removeChild(group.firstChild);
+
+    const majorH=20, midH=14, minorH=8;
+
+    function addLine(x,y1,y2,w){
+      const ln=document.createElementNS('http://www.w3.org/2000/svg','line');
+      ln.setAttribute('x1',x); ln.setAttribute('x2',x);
+      ln.setAttribute('y1',y1); ln.setAttribute('y2',y2);
+      ln.setAttribute('stroke','#111');
+      ln.setAttribute('stroke-width',w);
+      group.appendChild(ln);
+    }
+    function addText(x,y,txt,size){
+      const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x',x);
+      t.setAttribute('y',y);
+      t.setAttribute('fill','#111');
+      t.setAttribute('font-size',size);
+      t.setAttribute('text-anchor','middle');
+      t.textContent=txt;
+      group.appendChild(t);
+    }
+
+    for(let n=1;n<=10;n++){
+      const v=(n===10)?10:n;
+      const x=left+Math.log10(v)*scaleLen;
+
+      addLine(x,yBottom-majorH,yBottom,1.6);
+      addText(x,yBottom-majorH-labelYOffset,(n===10)?'10':String(n),11);
+
+      if(n<=9){
+        let step=0.05;
+        if(n===1) step=0.1;
+        else if(n===2||n===3) step=0.02;
+
+        for(let vv=n+step; vv<(n+1)-1e-12; vv+=step){
+          const xx=left+Math.log10(vv)*scaleLen;
+          let h=minorH, w=1.0;
+          const isTenth=Math.abs(vv*10-Math.round(vv*10))<1e-9;
+          const isHalf=Math.abs(vv*2-Math.round(vv*2))<1e-9;
+          if(isTenth){h=midH; w=1.2;}
+          else if(isHalf){h=midH; w=1.1;}
+          addLine(xx,yBottom-h,yBottom,w);
+        }
+        if(n===1){
+          for(let vv=1.01; vv<1.10-1e-12; vv+=0.01){
+            const xx=left+Math.log10(vv)*scaleLen;
+            addLine(xx,yBottom-5,yBottom,0.8);
+          }
+        }
+      }
+    }
+  }
+
+  drawTicks(ticksD,yD_top,yD_bottom,2);
+  drawTicks(ticksC,yC_top,yC_bottom,2);
+
+  function render(){
+    slide.setAttribute('transform',`translate(${slideOffset},0)`);
+    cursor.setAttribute('transform',`translate(${cursorX-(left+scaleLen/2)},0)`);
+    const d=xToVal(cursorX,0);
+    const c=xToVal(cursorX,slideOffset);
+    readout.textContent=
+      `Cursor: D = ${formatVal(d)}   C = ${formatVal(c)}   Slide offset = ${Math.round(slideOffset)} px`;
+  }
+
+  function svgPoint(evt){
+    const pt=svg.createSVGPoint();
+    pt.x=evt.clientX; pt.y=evt.clientY;
+    const m=svg.getScreenCTM();
+    if(!m) return {x:0,y:0};
+    const p=pt.matrixTransform(m.inverse());
+    return {x:p.x,y:p.y};
+  }
+
+  // Direct dragging anywhere on track
+  function handleSlideDrag(evt){
+    const p=svgPoint(evt);
+    const x=clamp(p.x,left,left+scaleLen);
+    const t=(x-left)/scaleLen;
+    slideOffset=slideMin+t*(slideMax-slideMin);
+    render();
+  }
+
+  function handleCursorDrag(evt){
+    const p=svgPoint(evt);
+    cursorX=clamp(p.x,left,left+scaleLen);
+    render();
+  }
+
+  slideTrack.addEventListener('pointerdown',handleSlideDrag);
+  slideTrack.addEventListener('pointermove',(e)=>{if(e.buttons) handleSlideDrag(e);});
+
+  cursorTrack.addEventListener('pointerdown',handleCursorDrag);
+  cursorTrack.addEventListener('pointermove',(e)=>{if(e.buttons) handleCursorDrag(e);});
+
+  svg.addEventListener('dblclick',()=>{
+    slideOffset=0;
+    cursorX=left+scaleLen*0.5;
+    render();
+  });
+
+  render();
+
+})();
+</script>
+</svg>
+
+<div class="hint">
+Controls enlarged and made fully track‑sensitive: you can drag anywhere along each bar, not just a small thumb.
+</div>
+</div>
+</body>
+</html>

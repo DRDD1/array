@@ -1,0 +1,772 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Equation Solver in x (real roots)</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --fg:#111827;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --panel:#f9fafb;
+      --danger:#b91c1c;
+      --ok:#065f46;
+      --accent:#1f2937;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    body{ margin:0; background:var(--bg); color:var(--fg); font-family:var(--sans); }
+    .wrap{ max-width:980px; margin:0 auto; padding:24px 16px 40px; }
+    h1{ font-size:20px; margin:0 0 10px; font-weight:700; }
+    p{ margin:8px 0 12px; color:var(--muted); line-height:1.45; }
+    .grid{ display:grid; grid-template-columns: 1.2fr 0.8fr; gap:16px; align-items:start; }
+    @media (max-width: 900px){ .grid{ grid-template-columns:1fr; } }
+    .card{
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:14px;
+      box-shadow:0 1px 0 rgba(17,24,39,0.04);
+    }
+    label{ display:block; font-size:12px; color:var(--muted); margin:10px 0 6px; }
+    input, textarea, select{
+      width:100%;
+      box-sizing:border-box;
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:10px 12px;
+      font-size:14px;
+      background:#fff;
+      color:var(--fg);
+      outline:none;
+    }
+    textarea{ min-height:70px; resize:vertical; font-family:var(--mono); }
+    input.mono{ font-family:var(--mono); }
+    .row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+    button{
+      margin-top:12px;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid var(--border);
+      background:var(--accent);
+      color:#fff;
+      cursor:pointer;
+      font-size:14px;
+      font-weight:600;
+    }
+    button.secondary{ background:#fff; color:var(--accent); }
+    button:active{ transform:translateY(1px); }
+    .hint{ font-size:12px; color:var(--muted); margin-top:8px; }
+    .mono{ font-family:var(--mono); }
+    .err{ color:var(--danger); white-space:pre-wrap; }
+    .ok{ color:var(--ok); }
+    .results{
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:12px;
+      overflow:auto;
+      max-height:420px;
+    }
+    table{ width:100%; border-collapse:collapse; }
+    th, td{ text-align:left; padding:8px 6px; border-bottom:1px solid var(--border); vertical-align:top; }
+    th{ font-size:12px; color:var(--muted); font-weight:700; }
+    td{ font-size:14px; }
+    .pill{
+      display:inline-block;
+      padding:2px 8px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      font-size:12px;
+      color:var(--muted);
+      background:#fff;
+    }
+    .small{ font-size:12px; color:var(--muted); }
+    .foot{ margin-top:14px; font-size:12px; color:var(--muted); line-height:1.45; }
+    .kbd{
+      font-family:var(--mono);
+      font-size:12px;
+      padding:1px 6px;
+      border:1px solid var(--border);
+      border-bottom-width:2px;
+      border-radius:6px;
+      background:#fff;
+      color:var(--fg);
+      display:inline-block;
+    }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <h1>Equation solver in <span class="mono">x</span> (real roots)</h1>
+  <p>
+    Enter a full equality in one variable <span class="mono">x</span>, choose a search interval, and the page will look for multiple real solutions.
+    It scans the interval for candidates and then refines each root numerically.
+  </p>
+
+  <div class="grid">
+    <div class="card">
+      <label for="eq">Equation (full equality)</label>
+      <textarea id="eq" spellcheck="false">x^2 = 2</textarea>
+      <div class="hint">
+        Use <span class="kbd">^</span> for powers. You can also paste Unicode symbols like <span class="mono">π</span>, <span class="mono">×</span>, <span class="mono">÷</span>, <span class="mono">−</span> and the solver will normalise them.
+        If you omit <span class="mono">=</span>, the solver assumes you entered <span class="mono">f(x)=0</span>.
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="xmin">x minimum</label>
+          <input id="xmin" class="mono" type="number" value="-10" step="any" />
+        </div>
+        <div>
+          <label for="xmax">x maximum</label>
+          <input id="xmax" class="mono" type="number" value="10" step="any" />
+        </div>
+      </div>
+
+      <div class="row3">
+        <div>
+          <label for="samples">Samples (scan resolution)</label>
+          <input id="samples" class="mono" type="number" value="800" min="50" max="20000" step="50" />
+        </div>
+        <div>
+          <label for="tol">Tolerance</label>
+          <input id="tol" class="mono" type="text" value="1e-10" />
+        </div>
+        <div>
+          <label for="maxit">Max iterations</label>
+          <input id="maxit" class="mono" type="number" value="80" min="10" max="500" step="5" />
+        </div>
+      </div>
+
+      <label for="examples">Examples</label>
+      <select id="examples">
+        <option value="">Select an example…</option>
+        <option value="x^2 = 2">x^2 = 2</option>
+        <option value="sin(x) = 0">sin(x) = 0</option>
+        <option value="cos(x) = x">cos(x) = x</option>
+        <option value="x^3 - 4*x = 0">x^3 - 4*x = 0</option>
+        <option value="exp(x) = 10">exp(x) = 10</option>
+        <option value="sqrt(x) = 3">sqrt(x) = 3</option>
+        <option value="abs(x-2) = 1">abs(x-2) = 1</option>
+      </select>
+
+      <div class="row">
+        <button id="solve">Solve on interval</button>
+        <button id="clear" class="secondary" title="Clear results">Clear</button>
+      </div>
+
+      <div class="foot">
+        Supported constants: <span class="mono">pi</span>, <span class="mono">e</span> (also accepts <span class="mono">π</span>).
+        Supported functions: <span class="mono">sin cos tan asin acos atan exp ln log sqrt abs floor ceil</span>.
+        Multiplication is best written explicitly (<span class="mono">2*x</span>), but common cases like <span class="mono">2x</span> and <span class="mono">(x+1)(x-1)</span> are handled.
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
+        <div><div class="pill">Results</div></div>
+        <div class="small" id="status"></div>
+      </div>
+
+      <div id="msg" class="err" style="margin:10px 0 0;"></div>
+
+      <div class="results" style="margin-top:10px;">
+        <table id="table">
+          <thead>
+            <tr>
+              <th style="width:40%;">Root x</th>
+              <th style="width:40%;">Verification f(x)</th>
+              <th style="width:20%;">Notes</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="3" class="small">No results yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="foot" id="diag"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Expression parsing (no eval, no Function) ----------
+
+  const FUNCTIONS = new Set(["sin","cos","tan","asin","acos","atan","exp","ln","log","sqrt","abs","floor","ceil"]);
+  const CONSTANTS = new Map([["pi", Math.PI], ["e", Math.E]]);
+  const OPS = {
+    "+": {prec: 1, assoc: "L", arity: 2},
+    "-": {prec: 1, assoc: "L", arity: 2},
+    "*": {prec: 2, assoc: "L", arity: 2},
+    "/": {prec: 2, assoc: "L", arity: 2},
+    "^": {prec: 3, assoc: "R", arity: 2},
+    "u-": {prec: 4, assoc: "R", arity: 1} // unary minus
+  };
+
+  function normaliseInput(expr){
+    // Common Unicode maths characters (mobile keyboards, copy-paste)
+    return (expr || "")
+      .replaceAll("−","-").replaceAll("–","-").replaceAll("—","-")
+      .replaceAll("×","*").replaceAll("·","*").replaceAll("∙","*")
+      .replaceAll("÷","/").replaceAll("π","pi").replaceAll("√","sqrt")
+      .replaceAll("²","^2").replaceAll("³","^3").replaceAll("⁴","^4")
+      .replaceAll("⁵","^5").replaceAll("⁶","^6").replaceAll("⁷","^7")
+      .replaceAll("⁸","^8").replaceAll("⁹","^9").replaceAll("⁰","^0");
+  }
+
+  function tokenise(expr){
+    const s = normaliseInput(expr).replace(/\s+/g, "");
+    const tokens = [];
+    let i = 0;
+
+    const isDigit = c => (c >= "0" && c <= "9");
+    const isAlpha = c => ((c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_");
+
+    while(i < s.length){
+      const c = s[i];
+
+      // number: 12, 12.3, .5, 1e-3, 2E+5
+      if(isDigit(c) || (c === "." && i+1 < s.length && isDigit(s[i+1]))){
+        let j = i+1;
+        while(j < s.length && (isDigit(s[j]) || s[j] === ".")) j++;
+        if(j < s.length && (s[j] === "e" || s[j] === "E")){
+          j++;
+          if(j < s.length && (s[j] === "+" || s[j] === "-")) j++;
+          if(j >= s.length || !isDigit(s[j])) throw new Error("Malformed scientific notation near: " + s.slice(i));
+          while(j < s.length && isDigit(s[j])) j++;
+        }
+        tokens.push({type:"num", value: parseFloat(s.slice(i, j))});
+        i = j;
+        continue;
+      }
+
+      // identifier: sin, x, pi
+      if(isAlpha(c)){
+        let j = i+1;
+        while(j < s.length && (isAlpha(s[j]) || isDigit(s[j]))) j++;
+        const name = s.slice(i, j);
+        tokens.push({type:"id", value: name});
+        i = j;
+        continue;
+      }
+
+      // operators and punctuation
+      if("+-*/^(),".includes(c)){
+        tokens.push({type:"sym", value:c});
+        i++;
+        continue;
+      }
+
+      throw new Error("Unsupported character: " + c);
+    }
+
+    // Insert implicit multiplication in common cases:
+    // number/x/)/constant next to x/(/number/constant (but not function calls like sin(x))
+    function isOperandToken(t){
+      if(!t) return false;
+      if(t.type === "num") return true;
+      if(t.type === "var") return true;
+      if(t.type === "sym" && t.value === ")") return true;
+      if(t.type === "id"){
+        const low = t.value.toLowerCase();
+        return (low === "x" || CONSTANTS.has(low));
+      }
+      return false;
+    }
+    function isOperandStart(t){
+      if(!t) return false;
+      if(t.type === "num") return true;
+      if(t.type === "sym" && t.value === "(") return true;
+      if(t.type === "id"){
+        const low = t.value.toLowerCase();
+        if(low === "x") return true;
+        if(CONSTANTS.has(low)) return true;
+        if(FUNCTIONS.has(low)) return true; // function start
+      }
+      return false;
+    }
+    function isFunctionCall(idTok, nextTok){
+      if(!idTok || idTok.type !== "id") return false;
+      const low = idTok.value.toLowerCase();
+      return FUNCTIONS.has(low) && nextTok && nextTok.type === "sym" && nextTok.value === "(";
+    }
+
+    const out = [];
+    for(let k=0; k<tokens.length; k++){
+      const cur = tokens[k];
+      out.push(cur);
+
+      const next = (k+1 < tokens.length) ? tokens[k+1] : null;
+
+      if(isOperandToken(cur) && isOperandStart(next)){
+        // Avoid inserting between function name and '(' (sin(x))
+        if(cur.type === "id" && isFunctionCall(cur, next)) continue;
+        // Avoid inserting after '(' or operator cases (already handled)
+        out.push({type:"sym", value:"*"});
+      }
+    }
+
+    return out;
+  }
+
+  function toRPN(tokens){
+    const output = [];
+    const stack = [];
+    const peek = () => stack.length ? stack[stack.length-1] : null;
+
+    let prev = null;
+    for(const t of tokens){
+      if(t.type === "num"){
+        output.push(t);
+        prev = t;
+        continue;
+      }
+
+      if(t.type === "id"){
+        const name = t.value;
+        if(name.toLowerCase() === "x"){
+          output.push({type:"var", value:"x"});
+        }else{
+          const lower = name.toLowerCase();
+          if(FUNCTIONS.has(lower)){
+            stack.push({type:"fn", value: lower});
+          }else if(CONSTANTS.has(lower)){
+            output.push({type:"num", value: CONSTANTS.get(lower)});
+          }else{
+            throw new Error("Unknown identifier: " + name);
+          }
+        }
+        prev = t;
+        continue;
+      }
+
+      if(t.type === "sym"){
+        const v = t.value;
+
+        if(v === ","){
+          while(stack.length && peek().value !== "("){
+            output.push(stack.pop());
+          }
+          if(!stack.length) throw new Error("Misplaced comma.");
+          prev = t;
+          continue;
+        }
+
+        if(v === "("){
+          stack.push({type:"sym", value:"("});
+          prev = t;
+          continue;
+        }
+        if(v === ")"){
+          while(stack.length && peek().value !== "("){
+            output.push(stack.pop());
+          }
+          if(!stack.length) throw new Error("Mismatched parentheses.");
+          stack.pop(); // pop '('
+          if(stack.length && peek().type === "fn"){
+            output.push(stack.pop());
+          }
+          prev = t;
+          continue;
+        }
+
+        let op = v;
+
+        // Unary minus if: start, after operator, after '(' or after comma
+        if(op === "-"){
+          const prevIsOperand = prev && (prev.type === "num" || prev.type === "id" || prev.type === "var" || (prev.type === "sym" && prev.value === ")"));
+          if(!prevIsOperand) op = "u-";
+        }
+
+        if(!OPS[op]) throw new Error("Unsupported operator: " + op);
+
+        const o1 = OPS[op];
+        while(stack.length){
+          const top = peek();
+          if(top.type === "fn"){
+            output.push(stack.pop());
+            continue;
+          }
+          if(top.type === "op"){
+            const o2 = OPS[top.value];
+            const cond = (o1.assoc === "L" && o1.prec <= o2.prec) || (o1.assoc === "R" && o1.prec < o2.prec);
+            if(cond){
+              output.push(stack.pop());
+              continue;
+            }
+          }
+          break;
+        }
+        stack.push({type:"op", value: op});
+        prev = t;
+        continue;
+      }
+
+      throw new Error("Unexpected token.");
+    }
+
+    while(stack.length){
+      const top = stack.pop();
+      if(top.type === "sym" && top.value === "(") throw new Error("Mismatched parentheses.");
+      output.push(top);
+    }
+
+    return output;
+  }
+
+  function evalRPN(rpn, x){
+    const st = [];
+    for(const t of rpn){
+      if(t.type === "num"){ st.push(t.value); continue; }
+      if(t.type === "var"){ st.push(x); continue; }
+
+      if(t.type === "fn"){
+        if(st.length < 1) throw new Error("Function call missing argument.");
+        const a = st.pop();
+        let res;
+        switch(t.value){
+          case "sin": res = Math.sin(a); break;
+          case "cos": res = Math.cos(a); break;
+          case "tan": res = Math.tan(a); break;
+          case "asin": res = Math.asin(a); break;
+          case "acos": res = Math.acos(a); break;
+          case "atan": res = Math.atan(a); break;
+          case "exp": res = Math.exp(a); break;
+          case "ln": res = Math.log(a); break;
+          case "log": res = Math.log10 ? Math.log10(a) : Math.log(a)/Math.LN10; break;
+          case "sqrt": res = Math.sqrt(a); break;
+          case "abs": res = Math.abs(a); break;
+          case "floor": res = Math.floor(a); break;
+          case "ceil": res = Math.ceil(a); break;
+          default: throw new Error("Unsupported function: " + t.value);
+        }
+        st.push(res);
+        continue;
+      }
+
+      if(t.type === "op"){
+        const op = t.value;
+        const ar = OPS[op].arity;
+        if(st.length < ar) throw new Error("Operator missing operand(s): " + op);
+
+        if(ar === 1){
+          const a = st.pop();
+          if(op === "u-") st.push(-a);
+          else throw new Error("Unknown unary operator: " + op);
+        }else{
+          const b = st.pop();
+          const a = st.pop();
+          switch(op){
+            case "+": st.push(a+b); break;
+            case "-": st.push(a-b); break;
+            case "*": st.push(a*b); break;
+            case "/": st.push(a/b); break;
+            case "^": st.push(Math.pow(a,b)); break;
+            default: throw new Error("Unknown operator: " + op);
+          }
+        }
+        continue;
+      }
+
+      throw new Error("Unexpected RPN token.");
+    }
+
+    if(st.length !== 1) throw new Error("Malformed expression.");
+    const y = st[0];
+    if(!Number.isFinite(y)) return NaN;
+    return y;
+  }
+
+  function parseEquationToF(eqText){
+    const raw = (eqText || "").trim();
+    if(!raw) throw new Error("Please enter an equation.");
+
+    const parts = normaliseInput(raw).split("=");
+    let left, right;
+
+    if(parts.length === 1){
+      left = parts[0];
+      right = "0";
+    }else if(parts.length === 2){
+      left = parts[0];
+      right = parts[1];
+    }else{
+      throw new Error("Use a single '=' sign. Example: x^2 = 2");
+    }
+
+    const leftRPN = toRPN(tokenise(left));
+    const rightRPN = toRPN(tokenise(right));
+
+    return function f(x){
+      const yl = evalRPN(leftRPN, x);
+      const yr = evalRPN(rightRPN, x);
+      const y = yl - yr;
+      if(!Number.isFinite(y)) return NaN;
+      return y;
+    };
+  }
+
+  // ---------- Root finding ----------
+
+  function bisection(f, a, b, tol, maxit){
+    let fa = f(a), fb = f(b);
+    if(!Number.isFinite(fa) || !Number.isFinite(fb)) return {ok:false, x:NaN, fx:NaN, it:0, note:"non-finite f(x)"};
+    if(fa === 0) return {ok:true, x:a, fx:0, it:0, note:"exact endpoint"};
+    if(fb === 0) return {ok:true, x:b, fx:0, it:0, note:"exact endpoint"};
+    if(fa*fb > 0) return {ok:false, x:NaN, fx:NaN, it:0, note:"not bracketed"};
+
+    let lo = a, hi = b, flo = fa;
+    let mid = (lo+hi)/2, fmid = f(mid);
+
+    for(let it = 1; it <= maxit; it++){
+      mid = (lo+hi)/2;
+      fmid = f(mid);
+      if(!Number.isFinite(fmid)) return {ok:false, x:NaN, fx:NaN, it, note:"non-finite f(x)"};
+
+      if(Math.abs(fmid) <= tol) return {ok:true, x:mid, fx:fmid, it, note:"bisection"};
+      if((hi-lo)/2 <= tol) return {ok:true, x:mid, fx:fmid, it, note:"interval small"};
+
+      if(flo*fmid <= 0){
+        hi = mid;
+      }else{
+        lo = mid; flo = fmid;
+      }
+    }
+    return {ok:true, x:mid, fx:fmid, it:maxit, note:"max iterations"};
+  }
+
+  function numericalDerivative(f, x){
+    const h = 1e-6 * (1 + Math.abs(x));
+    const fp = f(x + h);
+    const fm = f(x - h);
+    if(!Number.isFinite(fp) || !Number.isFinite(fm)) return NaN;
+    return (fp - fm) / (2*h);
+  }
+
+  function polishNewton(f, x0, tol, maxit){
+    let x = x0;
+    let fx = f(x);
+    if(!Number.isFinite(fx)) return {ok:false, x:NaN, fx:NaN, it:0, note:"non-finite f(x)"};
+    if(Math.abs(fx) <= tol) return {ok:true, x, fx, it:0, note:"within tolerance"};
+
+    for(let it=1; it<=maxit; it++){
+      const d = numericalDerivative(f, x);
+      if(!Number.isFinite(d) || Math.abs(d) < 1e-14){
+        return {ok:false, x, fx, it, note:"derivative too small"};
+      }
+      const step = fx / d;
+      const xNew = x - step;
+      const fxNew = f(xNew);
+      if(!Number.isFinite(fxNew)) return {ok:false, x, fx, it, note:"non-finite step"};
+      x = xNew; fx = fxNew;
+
+      if(Math.abs(fx) <= tol) return {ok:true, x, fx, it, note:"Newton polish"};
+      if(Math.abs(step) <= tol) return {ok:true, x, fx, it, note:"step small"};
+    }
+    return {ok:true, x, fx, it:maxit, note:"Newton max iterations"};
+  }
+
+  function solveOnInterval(f, xmin, xmax, samples, tol, maxit){
+    if(!(xmax > xmin)) throw new Error("Require x maximum > x minimum.");
+    if(!(samples >= 50)) throw new Error("Samples must be at least 50.");
+    if(!(tol > 0)) throw new Error("Tolerance must be > 0.");
+
+    const roots = [];
+    const notes = [];
+    const dx = (xmax - xmin) / samples;
+
+    const xs = new Array(samples+1);
+    const fs = new Array(samples+1);
+
+    for(let i=0;i<=samples;i++){
+      const x = xmin + i*dx;
+      xs[i] = x;
+      fs[i] = f(x);
+    }
+
+    function addRoot(candidate){
+      if(!Number.isFinite(candidate.x)) return;
+      if(candidate.x < xmin - 10*dx || candidate.x > xmax + 10*dx) return;
+
+      const eps = Math.max(1e-8, 5*tol);
+      for(let k=0;k<roots.length;k++){
+        if(Math.abs(roots[k] - candidate.x) <= eps * (1 + Math.abs(candidate.x))){
+          return;
+        }
+      }
+      roots.push(candidate.x);
+      notes.push(candidate.note || "");
+    }
+
+    // sign changes
+    for(let i=0;i<samples;i++){
+      const a = xs[i], b = xs[i+1];
+      const fa = fs[i], fb = fs[i+1];
+      if(!Number.isFinite(fa) || !Number.isFinite(fb)) continue;
+
+      if(Math.abs(fa) <= 50*tol){
+        const pol = polishNewton(f, a, tol, Math.max(20, Math.floor(maxit/2)));
+        if(pol.ok && Math.abs(pol.fx) <= 200*tol) addRoot(pol);
+      }
+
+      if(fa === 0){ addRoot({ok:true, x:a, fx:0, it:0, note:"exact sample"}); continue; }
+      if(fb === 0){ addRoot({ok:true, x:b, fx:0, it:0, note:"exact sample"}); continue; }
+
+      if(fa*fb < 0){
+        const bis = bisection(f, a, b, tol, maxit);
+        if(bis.ok) addRoot(bis);
+      }
+    }
+
+    // flat roots: local minima of |f|
+    for(let i=1;i<samples;i++){
+      const f0 = fs[i-1], f1 = fs[i], f2 = fs[i+1];
+      if(!Number.isFinite(f0) || !Number.isFinite(f1) || !Number.isFinite(f2)) continue;
+
+      const a0 = Math.abs(f0), a1 = Math.abs(f1), a2 = Math.abs(f2);
+      if(a1 < a0 && a1 < a2 && a1 <= 1e-4){
+        const seed = xs[i];
+        const pol = polishNewton(f, seed, tol, maxit);
+        if(pol.ok && Math.abs(pol.fx) <= 1e-6) addRoot({ok:true, x:pol.x, fx:pol.fx, it:pol.it, note:"flat-root polish"});
+      }
+    }
+
+    const out = roots.map((x, idx) => {
+      const fx = f(x);
+      return {x, fx, note: notes[idx] || ""};
+    }).sort((a,b) => a.x - b.x);
+
+    return out;
+  }
+
+  // ---------- UI ----------
+
+  const elEq = document.getElementById("eq");
+  const elXmin = document.getElementById("xmin");
+  const elXmax = document.getElementById("xmax");
+  const elSamples = document.getElementById("samples");
+  const elTol = document.getElementById("tol");
+  const elMaxit = document.getElementById("maxit");
+  const elSolve = document.getElementById("solve");
+  const elClear = document.getElementById("clear");
+  const elMsg = document.getElementById("msg");
+  const elBody = document.getElementById("tbody");
+  const elStatus = document.getElementById("status");
+  const elDiag = document.getElementById("diag");
+  const elExamples = document.getElementById("examples");
+
+  function fmt(x){
+    if(!Number.isFinite(x)) return "NaN";
+    const ax = Math.abs(x);
+    if(ax !== 0 && (ax >= 1e6 || ax < 1e-4)) return x.toExponential(12).replace(/(\.0+|0+)e/, "e");
+    return x.toPrecision(14).replace(/(\.0+|0+)$/,"");
+  }
+
+  function setMessage(txt, ok=false){
+    elMsg.textContent = txt || "";
+    elMsg.className = ok ? "ok" : "err";
+  }
+
+  function clearResults(){
+    elBody.innerHTML = '<tr><td colspan="3" class="small">No results yet.</td></tr>';
+    elDiag.textContent = "";
+    elStatus.textContent = "";
+    setMessage("");
+  }
+
+  function escapeHtml(s){
+    return (s || "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  }
+
+  function renderResults(roots){
+    if(!roots.length){
+      elBody.innerHTML = '<tr><td colspan="3" class="small">No roots found in this interval at the current scan resolution. Try increasing Samples, widening the interval, or checking the equation.</td></tr>';
+      return;
+    }
+    const rows = roots.map(r => {
+      return `<tr>
+        <td class="mono">${fmt(r.x)}</td>
+        <td class="mono">${fmt(r.fx)}</td>
+        <td class="small">${escapeHtml(r.note || "")}</td>
+      </tr>`;
+    }).join("");
+    elBody.innerHTML = rows;
+  }
+
+  elExamples.addEventListener("change", () => {
+    if(elExamples.value){
+      elEq.value = elExamples.value;
+      setMessage("");
+    }
+  });
+
+  elClear.addEventListener("click", clearResults);
+
+  elSolve.addEventListener("click", () => {
+    clearResults();
+    let f;
+    try{
+      f = parseEquationToF(elEq.value);
+    }catch(err){
+      setMessage(String(err && err.message ? err.message : err));
+      return;
+    }
+
+    const xmin = Number(elXmin.value);
+    const xmax = Number(elXmax.value);
+    const samples = Number(elSamples.value);
+    const tol = Number(elTol.value);
+    const maxit = Number(elMaxit.value);
+
+    if(!Number.isFinite(xmin) || !Number.isFinite(xmax)){
+      setMessage("x minimum and x maximum must be valid numbers.");
+      return;
+    }
+    if(!Number.isFinite(samples) || !Number.isFinite(maxit)){
+      setMessage("Samples and max iterations must be valid numbers.");
+      return;
+    }
+    if(!Number.isFinite(tol) || tol <= 0){
+      setMessage("Tolerance must be a positive number (example: 1e-10).");
+      return;
+    }
+
+    const t0 = performance.now();
+    let roots;
+    try{
+      roots = solveOnInterval(f, xmin, xmax, Math.floor(samples), tol, Math.floor(maxit));
+    }catch(err){
+      setMessage(String(err && err.message ? err.message : err));
+      return;
+    }
+    const t1 = performance.now();
+
+    renderResults(roots);
+
+    const n = roots.length;
+    const maxAbsFx = n ? Math.max(...roots.map(r => Math.abs(r.fx))) : NaN;
+    elStatus.textContent = n ? (n + " root" + (n===1 ? "" : "s")) : "No roots";
+    elDiag.textContent = [
+      "Interval: [" + fmt(xmin) + ", " + fmt(xmax) + "]",
+      "Samples: " + Math.floor(samples),
+      "Tolerance: " + String(tol),
+      n ? ("Max |f(x)| among reported roots: " + fmt(maxAbsFx)) : "",
+      "Runtime: " + (t1 - t0).toFixed(1) + " ms"
+    ].filter(Boolean).join(" • ");
+
+    setMessage("", true);
+  });
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1297 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>2D Corner Flow CFD (SI Units) — Incompressible Navier–Stokes, Power-Law Fluid</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --panel:#f6f7f9;
+      --text:#111;
+      --muted:#444;
+      --border:#d7dbe0;
+      --accent:#1a73e8;
+    }
+    html,body{height:100%; margin:0; background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;}
+    .wrap{display:flex; flex-direction:column; gap:12px; height:auto; padding:12px; box-sizing:border-box;}
+    .panel{
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:12px;
+      overflow:visible;
+    }
+    .panel h1{font-size:16px; margin:0 0 10px 0;}
+    .panel h2{font-size:13px; margin:14px 0 6px 0;}
+    .row{display:grid; grid-template-columns: 1fr 140px; gap:10px; align-items:center; margin:8px 0;}
+    .row label{font-size:12px; color:var(--muted);}
+    .row input[type="range"]{width:100%;}
+    .row input[type="number"]{width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:8px; background:#fff;}
+    .row select{width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:8px; background:#fff;}
+    .btns{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+    button{
+      border:1px solid var(--border);
+      background:#fff;
+      padding:8px 10px;
+      border-radius:10px;
+      cursor:pointer;
+      font-weight:600;
+      font-size:12px;
+    }
+    button.primary{background:var(--accent); border-color:var(--accent); color:#fff;}
+    button:disabled{opacity:0.5; cursor:not-allowed;}
+    .stat{
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:10px;
+      font-size:12px;
+      line-height:1.35;
+      margin-top:10px;
+      white-space:pre-wrap;
+    }
+    .vizCol{display:flex; flex-direction:column; gap:12px; min-height:0;}
+    .viz{
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:10px;
+      position:relative;
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:320px;
+      height:420px;
+    }
+    .vizTop{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:8px 10px;
+      border-bottom:1px solid var(--border);
+      background:#fafbfc;
+      font-size:12px;
+    }
+    .vizTop .left{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .vizTop .right{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .canvasWrap{position:relative; flex:1; min-height:220px;}
+    .canvasWrap canvas{position:absolute; inset:0; width:100%; height:100%;}
+    /* colourbar canvases must not be absolutely positioned */
+    .cbRow canvas{position:relative; inset:auto;}
+    .footerNote{font-size:12px; color:var(--muted); margin-top:10px; line-height:1.45;}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+    details{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-top:10px;}
+    details summary{cursor:pointer;font-weight:700;font-size:12px;}
+    details .content{margin-top:8px;font-size:12px;line-height:1.45;color:var(--muted);white-space:pre-wrap;}
+  
+    .cbRow{display:flex; align-items:center; gap:12px; padding:8px 10px; border-bottom:1px solid var(--border); background:#fff; flex-wrap:wrap;}
+    .cbRow .cbTicks{position:relative; width:260px; height:16px;}
+    .cbRow canvas{width:260px; height:14px; border:1px solid var(--border); border-radius:7px; display:block;}
+    .cbTickLine{position:absolute; top:0; bottom:0; width:1px; background:rgba(0,0,0,0.25);}
+    .cbTickLabel{position:absolute; top:16px; transform:translateX(-50%); font-size:11px; color:var(--muted); white-space:nowrap;}
+    .cbLabels{display:flex; align-items:center; gap:10px; font-size:12px; color:var(--muted); flex-wrap:wrap;}
+    .cbLabels .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h1>2D Corner Flow CFD (SI units: m, s, Pa, Pa·s)</h1>
+
+    <div class="btns">
+      <button id="btnReset" title="Rebuild geometry, clear fields">Reset</button>
+      <button id="btnStep" title="Run a fixed number of pseudo-time steps">Step ×200</button>
+      <button id="btnRun" class="primary" title="Start/stop pseudo-time marching to steady state">Run</button>
+    </div>
+
+    <h2>Domain and grid</h2>
+
+    <div class="row">
+      <label for="Lx">Domain size Lx (m)</label>
+      <input id="Lx" type="number" min="0.005" max="10" step="0.001" value="0.25">
+    </div>
+    <div class="row">
+      <label for="Ly">Domain size Ly (m)</label>
+      <input id="Ly" type="number" min="0.005" max="10" step="0.001" value="0.25">
+    </div>
+    <div class="row">
+      <label for="nx">Grid Nx (cells)</label>
+      <input id="nx" type="number" min="40" max="260" step="10" value="120">
+    </div>
+    <div class="row">
+      <label for="ny">Grid Ny (cells)</label>
+      <input id="ny" type="number" min="40" max="260" step="10" value="120">
+    </div>
+
+    <h2>Solver (SI)</h2>
+
+    <div class="row">
+      <label for="dt">Pseudo time-step dt (s)</label>
+      <input id="dt" type="number" min="1e-6" max="0.2" step="1e-5" value="0.0002">
+    </div>
+    <div class="row">
+      <label for="gsIts">Pressure Poisson iterations / step</label>
+      <input id="gsIts" type="number" min="20" max="600" step="10" value="180">
+    </div>
+    <div class="row">
+      <label for="relaxP">Pressure relaxation (ω)</label>
+      <input id="relaxP" type="number" min="0.6" max="1.9" step="0.05" value="1.6">
+    </div>
+    <div class="row">
+      <label for="relaxUV">Velocity relaxation</label>
+      <input id="relaxUV" type="number" min="0.1" max="1.0" step="0.05" value="0.8">
+    </div>
+
+    <h2>Fluid properties (SI)</h2>
+
+    <div class="row">
+      <label for="rho">Density ρ (kg/m³)</label>
+      <input id="rho" type="number" min="0.1" max="5000" step="1" value="1000">
+    </div>
+    <div class="row">
+      <label for="K">Consistency K (Pa·sⁿ)</label>
+      <input id="K" type="number" min="0.000001" max="500" step="0.001" value="0.15">
+    </div>
+    <div class="row">
+      <label for="n">Flow index n (–)</label>
+      <input id="n" type="number" min="0.2" max="1.8" step="0.02" value="0.7">
+    </div>
+    <div class="row">
+      <label for="g0">Regularisation γ̇₀ (1/s)</label>
+      <input id="g0" type="number" min="0.0001" max="5000" step="0.1" value="1.0">
+    </div>
+    <div class="row">
+      <label for="muMin">Clamp μeff min (Pa·s)</label>
+      <input id="muMin" type="number" min="0.0000001" max="50" step="0.0001" value="0.001">
+    </div>
+    <div class="row">
+      <label for="muMax">Clamp μeff max (Pa·s)</label>
+      <input id="muMax" type="number" min="0.0001" max="5000" step="0.1" value="20">
+    </div>
+
+    <h2>Boundary conditions (SI)</h2>
+
+    <div class="row">
+      <label for="uin">Inlet velocity Uin (m/s)</label>
+      <input id="uin" type="number" min="0.0001" max="50" step="0.01" value="1.0">
+    </div>
+    <div class="row">
+      <label for="pout">Outlet pressure (Pa)</label>
+      <input id="pout" type="number" min="-1e6" max="1e6" step="10" value="0">
+    </div>
+
+    <h2>Geometry (mask-based, adjustable)</h2>
+
+    <div class="row">
+      <label for="turnX">Turn x (% of width)</label>
+      <input id="turnX" type="number" min="25" max="75" step="1" value="55">
+    </div>
+    <div class="row">
+      <label for="turnY">Turn y (% of height)</label>
+      <input id="turnY" type="number" min="5" max="55" step="1" value="18">
+    </div>
+
+    <div class="row">
+      <label for="win">Inlet-leg width (% of Ly)</label>
+      <input id="win" type="number" min="8" max="45" step="1" value="22">
+    </div>
+    <div class="row">
+      <label for="wout">Outlet-leg width (% of Lx)</label>
+      <input id="wout" type="number" min="8" max="45" step="1" value="16">
+    </div>
+
+    <div class="row">
+      <label for="blockSize">Block size (% of outlet width)</label>
+      <input id="blockSize" type="number" min="10" max="90" step="1" value="45">
+    </div>
+    <div class="row">
+      <label for="blockOffset">Block offset from outlet (% of Ly)</label>
+      <input id="blockOffset" type="number" min="2" max="65" step="1" value="22">
+    </div>
+    <div class="row">
+      <label for="blockSide">Block attached to</label>
+      <select id="blockSide">
+        <option value="right" selected>Right wall of vertical leg</option>
+        <option value="left">Left wall of vertical leg</option>
+      </select>
+    </div>
+
+    <h2>Visual update and convergence</h2>
+
+    <div class="row">
+      <label for="plotEvery">Plot update every N steps</label>
+      <input id="plotEvery" type="number" min="1" max="5000" step="1" value="20">
+    </div>
+
+    <div class="row">
+      <label for="checkEvery">Convergence check every N steps</label>
+      <input id="checkEvery" type="number" min="5" max="5000" step="5" value="120">
+    </div>
+
+    <div class="row">
+      <label for="divTol">Divergence tolerance max |∇·v| (1/s)</label>
+      <input id="divTol" type="number" min="1e-10" max="1e2" step="1e-6" value="0.05">
+    </div>
+
+    <div class="row">
+      <label for="velTol">Velocity-change tolerance RMS Δu (m/s)</label>
+      <input id="velTol" type="number" min="1e-10" max="1e0" step="1e-6" value="0.0005">
+    </div>
+
+    <div class="row">
+      <label for="autoStop">Auto-stop when converged</label>
+      <select id="autoStop">
+        <option value="yes" selected>Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+
+    <details>
+      <summary>Notes on SI units for the power-law model</summary>
+      <div class="content" id="estimateBox"></div>
+    </details>
+
+    <div class="stat" id="stats">Initialising…</div>
+
+    <div class="footerNote">
+      This version uses explicit <span class="mono">dx, dy</span> from <span class="mono">Lx, Ly</span>.
+      Velocity is in <span class="mono">m/s</span>, pressure in <span class="mono">Pa</span>, viscosity in <span class="mono">Pa·s</span>, density in <span class="mono">kg/m³</span>.
+      It remains a teaching solver (simplified variable-viscosity diffusion term).
+    </div>
+  </div>
+
+  <div class="vizCol">
+    <div class="viz" id="vizVel">
+      <div class="vizTop">
+        <div class="left">
+          <span><strong>Speed map</strong> (<span class="mono">|v|</span>, m/s)</span>
+          <label><input id="showMesh" type="checkbox" checked> Mesh</label>
+          <label><input id="showVec" type="checkbox" checked> Vectors</label>
+          <label><input id="showStream" type="checkbox"> Streamlines</label>
+        </div>
+        <div class="right">
+          <span class="mono" id="mini">step: 0</span>
+        </div>
+      </div>
+
+      <div class="cbRow" aria-label="Speed colour legend">
+        <div class="cbTicks">
+          <canvas id="cbVel"></canvas>
+          <div class="cbTickLine" style="left:0%"></div>
+          <div class="cbTickLine" style="left:25%"></div>
+          <div class="cbTickLine" style="left:50%"></div>
+          <div class="cbTickLine" style="left:75%"></div>
+          <div class="cbTickLine" style="left:100%"></div>
+
+          <div class="cbTickLabel" style="left:0%"><span class="mono" id="cbVelMin">0</span></div>
+          <div class="cbTickLabel" style="left:50%"><span class="mono" id="cbVelMid">0</span></div>
+          <div class="cbTickLabel" style="left:100%"><span class="mono" id="cbVelMax">0</span></div>
+        </div>
+
+        <div class="cbLabels">
+          <span class="mono">m/s</span>
+          <span id="cbVelNote" class="mono"></span>
+        </div>
+      </div>
+
+      <div class="canvasWrap" id="wrapVel">
+        <canvas id="cVel0"></canvas>
+        <canvas id="cVel1"></canvas>
+      </div>
+    </div>
+
+    <div class="viz" id="vizP">
+      <div class="vizTop">
+        <div class="left">
+          <span><strong>Pressure map</strong> (<span class="mono">p</span>, Pa)</span>
+          <label><input id="showMeshP" type="checkbox" checked> Mesh</label>
+        </div>
+        <div class="right">
+          <span class="mono" id="mini2">status: ready</span>
+        </div>
+      </div>
+
+      <div class="cbRow" aria-label="Pressure colour legend">
+        <div class="cbTicks">
+          <canvas id="cbP"></canvas>
+          <div class="cbTickLine" style="left:0%"></div>
+          <div class="cbTickLine" style="left:25%"></div>
+          <div class="cbTickLine" style="left:50%"></div>
+          <div class="cbTickLine" style="left:75%"></div>
+          <div class="cbTickLine" style="left:100%"></div>
+
+          <div class="cbTickLabel" style="left:0%"><span class="mono" id="cbPMin">0</span></div>
+          <div class="cbTickLabel" style="left:50%"><span class="mono" id="cbPMid">0</span></div>
+          <div class="cbTickLabel" style="left:100%"><span class="mono" id="cbPMax">0</span></div>
+        </div>
+
+        <div class="cbLabels">
+          <span class="mono">Pa</span>
+          <span id="cbPNote" class="mono"></span>
+        </div>
+      </div>
+
+      <div class="canvasWrap" id="wrapP">
+        <canvas id="cP0"></canvas>
+        <canvas id="cP1"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+  SI-consistent version:
+    - Explicit dx = Lx/Nx, dy = Ly/Ny used in advection, diffusion, divergence, pressure Poisson, projection.
+    - Inputs: Lx,Ly in m; dt in s; Uin in m/s; p in Pa; rho kg/m^3; mu in Pa*s; K in Pa*s^n.
+    - Field legends show SI units.
+    - Convergence: max |div| in 1/s and RMS Δu in m/s.
+
+  Important modelling note:
+    Diffusion term is implemented as (mu/rho) * Laplacian(u) and (mu/rho) * Laplacian(v) with mu sampled on faces.
+    For spatially varying viscosity, the fully correct operator is ∇·(2μD). This code uses the simplified term for clarity.
+*/
+
+const ui = (id)=>document.getElementById(id);
+
+const cVel0 = ui('cVel0'), cVel1 = ui('cVel1');
+const cP0   = ui('cP0'),   cP1   = ui('cP1');
+const ctxVel0 = cVel0.getContext('2d'), ctxVel1 = cVel1.getContext('2d');
+const ctxP0   = cP0.getContext('2d'),   ctxP1   = cP1.getContext('2d');
+
+let S = null;
+let running = false;
+let rafId = null;
+
+function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
+function idx(i,j,nx){ return i + nx*j; }
+function uIdx(i,j,nx){ return i + (nx+1)*j; } // u face
+function vIdx(i,j,nx){ return i + nx*j; }     // v face (size nx*(ny+1), caller must handle)
+
+function resizeCanvasPair(canvas0, canvas1, wrapEl){
+  const wrap = wrapEl.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  for(const c of [canvas0, canvas1]){
+    c.width  = Math.max(1, Math.floor(wrap.width * dpr));
+    c.height = Math.max(1, Math.floor(wrap.height * dpr));
+    c.style.width = wrap.width + 'px';
+    c.style.height = wrap.height + 'px';
+    const ctx = c.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+}
+function resizeCanvases(){
+  resizeCanvasPair(cVel0, cVel1, ui('wrapVel'));
+  resizeCanvasPair(cP0,   cP1,   ui('wrapP'));
+  // colourbar canvases are styled via CSS, redraw on resize
+  drawColourbar(ui('cbVel'),'vel');
+  drawColourbar(ui('cbP'),'p');
+  drawAll(true);
+}
+window.addEventListener('resize', resizeCanvases);
+
+function readParams(){
+  const nx = parseInt(ui('nx').value,10);
+  const ny = parseInt(ui('ny').value,10);
+  const Lx = parseFloat(ui('Lx').value);
+  const Ly = parseFloat(ui('Ly').value);
+  const dx = Lx / nx;
+  const dy = Ly / ny;
+
+  return {
+    Lx,Ly, nx,ny, dx,dy,
+    dt: parseFloat(ui('dt').value),
+    gsIts: parseInt(ui('gsIts').value,10),
+    relaxP: parseFloat(ui('relaxP').value),
+    relaxUV: parseFloat(ui('relaxUV').value),
+
+    rho: parseFloat(ui('rho').value),
+    K: parseFloat(ui('K').value),
+    n: parseFloat(ui('n').value),
+    g0: parseFloat(ui('g0').value),
+    muMin: parseFloat(ui('muMin').value),
+    muMax: parseFloat(ui('muMax').value),
+
+    uin: parseFloat(ui('uin').value),
+    pout: parseFloat(ui('pout').value),
+
+    turnX: parseFloat(ui('turnX').value)/100,
+    turnY: parseFloat(ui('turnY').value)/100,
+    win: parseFloat(ui('win').value)/100,
+    wout: parseFloat(ui('wout').value)/100,
+
+    blockSize: parseFloat(ui('blockSize').value)/100,
+    blockOffset: parseFloat(ui('blockOffset').value)/100,
+    blockSide: ui('blockSide').value,
+
+    plotEvery: parseInt(ui('plotEvery').value,10),
+    checkEvery: parseInt(ui('checkEvery').value,10),
+    divTol: parseFloat(ui('divTol').value),
+    velTol: parseFloat(ui('velTol').value),
+    autoStop: ui('autoStop').value === 'yes',
+
+    showMesh: ui('showMesh').checked,
+    showVec: ui('showVec').checked,
+    showStream: ui('showStream').checked,
+    showMeshP: ui('showMeshP').checked
+  };
+}
+
+function buildMask(nx, ny, P){
+  const solid = new Uint8Array(nx*ny);
+  const turn_i = Math.round(P.turnX * (nx-1));
+  const turn_j = Math.round(P.turnY * (ny-1));
+
+  const win_j = Math.max(3, Math.round(P.win * ny));
+  const wout_i = Math.max(3, Math.round(P.wout * nx));
+
+  const y0 = clamp(turn_j, 0, ny-1);
+  const y1 = clamp(turn_j + win_j, 0, ny);
+  const x0 = clamp(turn_i, 0, nx-1);
+  const x1 = clamp(turn_i + wout_i, 0, nx);
+
+  solid.fill(1);
+
+  // horizontal leg
+  for(let j=y0; j<y1; j++){
+    for(let i=0; i<turn_i; i++) solid[idx(i,j,nx)] = 0;
+  }
+  // vertical leg
+  for(let j=y0; j<ny; j++){
+    for(let i=x0; i<x1; i++) solid[idx(i,j,nx)] = 0;
+  }
+
+  // block
+  const b = Math.max(2, Math.round(P.blockSize * wout_i));
+  const offset = Math.max(0, Math.round(P.blockOffset * ny));
+  const bj1 = clamp(ny - offset, 0, ny);
+  const bj0 = clamp(bj1 - b, 0, ny);
+
+  let bi0, bi1;
+  if(P.blockSide === 'right'){
+    bi1 = x1;
+    bi0 = clamp(bi1 - b, x0, x1);
+  }else{
+    bi0 = x0;
+    bi1 = clamp(bi0 + b, x0, x1);
+  }
+  for(let j=bj0; j<bj1; j++){
+    for(let i=bi0; i<bi1; i++){
+      solid[idx(i,j,nx)] = 1;
+    }
+  }
+
+  const inlet_j0 = y0;
+  const inlet_j1 = y1;
+  const outlet_i0 = x0;
+  const outlet_i1 = x1;
+
+  return { solid, turn_i, turn_j, win_j, wout_i, x0,x1,y0,y1, inlet_j0, inlet_j1, outlet_i0, outlet_i1,
+           block:{bi0,bi1,bj0,bj1,b} };
+}
+
+function allocSim(P){
+  const {nx,ny} = P;
+  const g = buildMask(nx, ny, P);
+
+  // staggered storage
+  const u  = new Float32Array((nx+1)*ny);   // m/s
+  const u0 = new Float32Array((nx+1)*ny);
+  const v  = new Float32Array(nx*(ny+1));   // m/s
+  const v0 = new Float32Array(nx*(ny+1));
+  const p  = new Float32Array(nx*ny);       // Pa
+  const mu = new Float32Array(nx*ny);       // Pa*s
+  const div = new Float32Array(nx*ny);      // 1/s (∂u/∂x+∂v/∂y)
+
+  const uPrev = new Float32Array(u.length);
+  const vPrev = new Float32Array(v.length);
+
+  return {
+    P, g,
+    u,u0,v,v0,p,mu,div,
+    uPrev,vPrev,
+    step:0,
+    lastResidual:0,
+    lastMaxDiv:0,
+    lastCFL:0,
+    lastMuRange:[0,0],
+    lastVelRMS:NaN,
+    converged:false,
+    convStreak:0
+  };
+}
+
+function isFluid(S,i,j){
+  const nx=S.P.nx, ny=S.P.ny;
+  if(i<0||i>=nx||j<0||j>=ny) return false;
+  return S.g.solid[idx(i,j,nx)]===0;
+}
+
+function applyBC(S){
+  const {nx,ny,uin,pout} = S.P;
+  const g = S.g;
+
+  // inlet: u specified (m/s) at left boundary faces for inlet j-range
+  for(let j=g.inlet_j0; j<g.inlet_j1; j++){
+    S.u[uIdx(0,j,nx)] = uin;
+  }
+
+  // no-slip at solid boundaries: zero normal/tangential faces adjacent to solids
+  for(let j=0; j<ny; j++){
+    for(let i=0; i<nx+1; i++){
+      const leftFluid = isFluid(S,i-1,j);
+      const rightFluid = isFluid(S,i,j);
+      if(!(leftFluid && rightFluid)){
+        const isInletFace = (i===0 && j>=g.inlet_j0 && j<g.inlet_j1);
+        if(!isInletFace) S.u[uIdx(i,j,nx)] = 0;
+      }
+    }
+  }
+  for(let j=0; j<ny+1; j++){
+    for(let i=0; i<nx; i++){
+      const botFluid = isFluid(S,i,j-1);
+      const topFluid = isFluid(S,i,j);
+      if(!(botFluid && topFluid)) S.v[i + nx*j] = 0;
+    }
+  }
+
+  // outlet: fixed pressure at top row fluid cells in outlet i-range
+  for(let i=g.outlet_i0; i<g.outlet_i1; i++){
+    if(isFluid(S,i,ny-1)) S.p[idx(i,ny-1,nx)] = pout;
+  }
+}
+
+function centreU(S,i,j){
+  const nx=S.P.nx;
+  return 0.5*(S.u[uIdx(i,j,nx)] + S.u[uIdx(i+1,j,nx)]);
+}
+function centreV(S,i,j){
+  const nx=S.P.nx;
+  return 0.5*(S.v[i + nx*j] + S.v[i + nx*(j+1)]);
+}
+
+function updateViscosity(S){
+  const {nx,ny,dx,dy,K,n,g0,muMin,muMax} = S.P;
+  let muLo=1e30, muHi=-1e30;
+
+  for(let j=0; j<ny; j++){
+    for(let i=0; i<nx; i++){
+      const id = idx(i,j,nx);
+      if(!isFluid(S,i,j)){ S.mu[id]=muMax; continue; }
+
+      const uc = centreU(S,i,j);
+      const vc = centreV(S,i,j);
+
+      const ucL = (i>0   && isFluid(S,i-1,j)) ? centreU(S,i-1,j) : uc;
+      const ucR = (i<nx-1&& isFluid(S,i+1,j)) ? centreU(S,i+1,j) : uc;
+      const ucB = (j>0   && isFluid(S,i,j-1)) ? centreU(S,i,j-1) : uc;
+      const ucT = (j<ny-1&& isFluid(S,i,j+1)) ? centreU(S,i,j+1) : uc;
+
+      const vcL = (i>0   && isFluid(S,i-1,j)) ? centreV(S,i-1,j) : vc;
+      const vcR = (i<nx-1&& isFluid(S,i+1,j)) ? centreV(S,i+1,j) : vc;
+      const vcB = (j>0   && isFluid(S,i,j-1)) ? centreV(S,i,j-1) : vc;
+      const vcT = (j<ny-1&& isFluid(S,i,j+1)) ? centreV(S,i,j+1) : vc;
+
+      const du_dx = (ucR - ucL) / (2*dx);
+      const du_dy = (ucT - ucB) / (2*dy);
+      const dv_dx = (vcR - vcL) / (2*dx);
+      const dv_dy = (vcT - vcB) / (2*dy);
+
+      const Dxx = du_dx;
+      const Dyy = dv_dy;
+      const Dxy = 0.5*(du_dy + dv_dx);
+
+      const gamma2 = 2*(Dxx*Dxx + Dyy*Dyy + 2*Dxy*Dxy); // 1/s^2
+      const muEff = K * Math.pow(gamma2 + g0*g0, 0.5*(n-1)); // Pa*s (with K in Pa*s^n)
+      const muClamped = clamp(muEff, muMin, muMax);
+
+      S.mu[id] = muClamped;
+      if(muClamped<muLo) muLo=muClamped;
+      if(muClamped>muHi) muHi=muClamped;
+    }
+  }
+  if(muLo===1e30){ muLo=0; muHi=0; }
+  S.lastMuRange=[muLo,muHi];
+}
+
+function advectU(S){
+  const {nx,ny,dt,dx,dy} = S.P;
+  const u = S.u, v = S.v, out = S.u0;
+  out.set(u);
+
+  for(let j=0; j<ny; j++){
+    for(let i=1; i<nx; i++){
+      const leftFluid = isFluid(S,i-1,j), rightFluid = isFluid(S,i,j);
+      if(!(leftFluid && rightFluid)) continue;
+
+      const uu = u[uIdx(i,j,nx)];
+      const vHere = 0.25*(
+        v[(i-1) + nx*j] + v[i + nx*j] +
+        v[(i-1) + nx*(j+1)] + v[i + nx*(j+1)]
+      );
+
+      const uL = u[uIdx(i-1,j,nx)];
+      const uR = u[uIdx(i+1,j,nx)];
+      const dudx = (uu >= 0) ? (uu - uL)/dx : (uR - uu)/dx;
+
+      const uB = (j>0)   ? u[uIdx(i,j-1,nx)] : uu;
+      const uT = (j<ny-1)? u[uIdx(i,j+1,nx)] : uu;
+      const dudy = (vHere >= 0) ? (uu - uB)/dy : (uT - uu)/dy;
+
+      out[uIdx(i,j,nx)] = uu - dt*(uu*dudx + vHere*dudy);
+    }
+  }
+}
+
+function advectV(S){
+  const {nx,ny,dt,dx,dy} = S.P;
+  const u = S.u, v = S.v, out = S.v0;
+  out.set(v);
+
+  for(let j=1; j<ny; j++){
+    for(let i=0; i<nx; i++){
+      const botFluid = isFluid(S,i,j-1), topFluid = isFluid(S,i,j);
+      if(!(botFluid && topFluid)) continue;
+
+      const vv = v[i + nx*j];
+      const uHere = 0.25*(
+        u[uIdx(i,j-1,nx)] + u[uIdx(i+1,j-1,nx)] +
+        u[uIdx(i,j,nx)]   + u[uIdx(i+1,j,nx)]
+      );
+
+      const vL = (i>0)   ? v[(i-1) + nx*j] : vv;
+      const vR = (i<nx-1)? v[(i+1) + nx*j] : vv;
+      const dvdx = (uHere >= 0) ? (vv - vL)/dx : (vR - vv)/dx;
+
+      const vB = v[i + nx*(j-1)];
+      const vT = v[i + nx*(j+1)];
+      const dvdy = (vv >= 0) ? (vv - vB)/dy : (vT - vv)/dy;
+
+      out[i + nx*j] = vv - dt*(uHere*dvdx + vv*dvdy);
+    }
+  }
+}
+
+function diffuseU(S){
+  const {nx,ny,dt,dx,dy,rho} = S.P;
+  const u = S.u0, out = S.u;
+  out.set(u);
+
+  const invDx2 = 1/(dx*dx);
+  const invDy2 = 1/(dy*dy);
+
+  for(let j=0; j<ny; j++){
+    for(let i=1; i<nx; i++){
+      const leftFluid = isFluid(S,i-1,j), rightFluid = isFluid(S,i,j);
+      if(!(leftFluid && rightFluid)) continue;
+
+      // face viscosity as average of adjacent cell viscosities
+      const muL = S.mu[idx(i-1,j,nx)];
+      const muR = S.mu[idx(i,j,nx)];
+      const muF = 0.5*(muL + muR);
+
+      const uC = u[uIdx(i,j,nx)];
+      const uLhs = u[uIdx(i-1,j,nx)];
+      const uRhs = u[uIdx(i+1,j,nx)];
+      const uBhs = (j>0)   ? u[uIdx(i,j-1,nx)] : uC;
+      const uThs = (j<ny-1)? u[uIdx(i,j+1,nx)] : uC;
+
+      const lap = (uLhs - 2*uC + uRhs)*invDx2 + (uBhs - 2*uC + uThs)*invDy2;
+      out[uIdx(i,j,nx)] = uC + dt*(muF/rho)*lap;
+    }
+  }
+}
+
+function diffuseV(S){
+  const {nx,ny,dt,dx,dy,rho} = S.P;
+  const v = S.v0, out = S.v;
+  out.set(v);
+
+  const invDx2 = 1/(dx*dx);
+  const invDy2 = 1/(dy*dy);
+
+  for(let j=1; j<ny; j++){
+    for(let i=0; i<nx; i++){
+      const botFluid = isFluid(S,i,j-1), topFluid = isFluid(S,i,j);
+      if(!(botFluid && topFluid)) continue;
+
+      const muB = S.mu[idx(i,j-1,nx)];
+      const muT = S.mu[idx(i,j,nx)];
+      const muF = 0.5*(muB + muT);
+
+      const vC = v[i + nx*j];
+      const vLhs = (i>0)   ? v[(i-1) + nx*j] : vC;
+      const vRhs = (i<nx-1)? v[(i+1) + nx*j] : vC;
+      const vBhs = v[i + nx*(j-1)];
+      const vThs = v[i + nx*(j+1)];
+
+      const lap = (vLhs - 2*vC + vRhs)*invDx2 + (vBhs - 2*vC + vThs)*invDy2;
+      out[i + nx*j] = vC + dt*(muF/rho)*lap;
+    }
+  }
+}
+
+function computeDivergence(S){
+  const {nx,ny,dx,dy} = S.P;
+  let maxDiv = 0;
+
+  for(let j=0; j<ny; j++){
+    for(let i=0; i<nx; i++){
+      const id = idx(i,j,nx);
+      if(!isFluid(S,i,j)){ S.div[id]=0; continue; }
+      const du = (S.u[uIdx(i+1,j,nx)] - S.u[uIdx(i,j,nx)]) / dx;
+      const dv = (S.v[i + nx*(j+1)] - S.v[i + nx*j]) / dy;
+      const d = du + dv; // 1/s
+      S.div[id] = d;
+      maxDiv = Math.max(maxDiv, Math.abs(d));
+    }
+  }
+  S.lastMaxDiv = maxDiv;
+}
+
+function solvePressure(S){
+  const {nx,ny,dx,dy,dt,rho,gsIts,relaxP,pout} = S.P;
+  const g = S.g;
+  const p = S.p;
+
+  // Discretised: ∇²p = (rho/dt) * div
+  const rhsScale = rho/dt;
+  const invDx2 = 1/(dx*dx);
+  const invDy2 = 1/(dy*dy);
+  const denom = 2*(invDx2 + invDy2);
+
+  for(let it=0; it<gsIts; it++){
+    let res=0;
+    for(let j=0; j<ny; j++){
+      for(let i=0; i<nx; i++){
+        const idc = idx(i,j,nx);
+        if(!isFluid(S,i,j)) continue;
+
+        const isOutletCell = (j===ny-1 && i>=g.outlet_i0 && i<g.outlet_i1);
+        if(isOutletCell){
+          const r = p[idc] - pout;
+          p[idc] = pout;
+          res += r*r;
+          continue;
+        }
+
+        const pC = p[idc];
+        const pL = (i>0   && isFluid(S,i-1,j)) ? p[idx(i-1,j,nx)] : pC;
+        const pR = (i<nx-1&& isFluid(S,i+1,j)) ? p[idx(i+1,j,nx)] : pC;
+        const pB = (j>0   && isFluid(S,i,j-1)) ? p[idx(i,j-1,nx)] : pC;
+        const pT = (j<ny-1&& isFluid(S,i,j+1)) ? p[idx(i,j+1,nx)] : pC;
+
+        const rhs = rhsScale * S.div[idc]; // Pa/m^2
+        const pNew = ( (pL + pR)*invDx2 + (pB + pT)*invDy2 - rhs ) / denom;
+
+        const delta = pNew - pC;
+        p[idc] = pC + relaxP*delta;
+        res += delta*delta;
+      }
+    }
+    S.lastResidual = Math.sqrt(res/(nx*ny));
+  }
+}
+
+function project(S){
+  const {nx,ny,dx,dy,dt,rho,relaxUV} = S.P;
+
+  // u faces: dp/dx
+  for(let j=0; j<ny; j++){
+    for(let i=1; i<nx; i++){
+      const leftFluid = isFluid(S,i-1,j), rightFluid = isFluid(S,i,j);
+      if(!(leftFluid && rightFluid)) continue;
+
+      const pL = S.p[idx(i-1,j,nx)];
+      const pR = S.p[idx(i,j,nx)];
+      const gradp = (pR - pL)/dx; // Pa/m
+      const uOld = S.u[uIdx(i,j,nx)];
+      const uCorr = uOld - (dt/rho)*gradp; // m/s
+      S.u[uIdx(i,j,nx)] = (1-relaxUV)*uOld + relaxUV*uCorr;
+    }
+  }
+
+  // v faces: dp/dy
+  for(let j=1; j<ny; j++){
+    for(let i=0; i<nx; i++){
+      const botFluid = isFluid(S,i,j-1), topFluid = isFluid(S,i,j);
+      if(!(botFluid && topFluid)) continue;
+
+      const pB = S.p[idx(i,j-1,nx)];
+      const pT = S.p[idx(i,j,nx)];
+      const gradp = (pT - pB)/dy; // Pa/m
+      const vOld = S.v[i + nx*j];
+      const vCorr = vOld - (dt/rho)*gradp;
+      S.v[i + nx*j] = (1-relaxUV)*vOld + relaxUV*vCorr;
+    }
+  }
+}
+
+function computeCFL(S){
+  const {nx,ny,dt,dx,dy} = S.P;
+  let umax=0, vmax=0;
+  for(let j=0; j<ny; j++){
+    for(let i=0; i<nx+1; i++) umax = Math.max(umax, Math.abs(S.u[uIdx(i,j,nx)]));
+  }
+  for(let j=0; j<ny+1; j++){
+    for(let i=0; i<nx; i++) vmax = Math.max(vmax, Math.abs(S.v[i + nx*j]));
+  }
+  // classic CFL-like indicator: dt*(|u|/dx + |v|/dy)
+  S.lastCFL = dt*(umax/dx + vmax/dy);
+}
+
+function measureVelChangeRMS(S){
+  const {nx,ny} = S.P;
+  let sum2=0, count=0;
+
+  for(let j=0; j<ny; j++){
+    for(let i=1; i<nx; i++){
+      const leftFluid = isFluid(S,i-1,j), rightFluid = isFluid(S,i,j);
+      if(!(leftFluid && rightFluid)) continue;
+      const d = S.u[uIdx(i,j,nx)] - S.uPrev[uIdx(i,j,nx)];
+      sum2 += d*d; count++;
+    }
+  }
+  for(let j=1; j<ny; j++){
+    for(let i=0; i<nx; i++){
+      const botFluid = isFluid(S,i,j-1), topFluid = isFluid(S,i,j);
+      if(!(botFluid && topFluid)) continue;
+      const d = S.v[i + nx*j] - S.vPrev[i + nx*j];
+      sum2 += d*d; count++;
+    }
+  }
+  const rms = Math.sqrt(sum2/Math.max(1,count));
+  S.lastVelRMS = rms;
+  return rms;
+}
+function checkConvergence(S){
+  const divOk = S.lastMaxDiv < S.P.divTol;
+  const velOk = S.lastVelRMS < S.P.velTol;
+  if(divOk && velOk) S.convStreak++; else S.convStreak=0;
+  S.converged = (S.convStreak >= 3);
+  ui('mini2').textContent = S.converged ? 'status: converged' : 'status: running';
+  return S.converged;
+}
+function copyToPrev(S){
+  S.uPrev.set(S.u);
+  S.vPrev.set(S.v);
+}
+
+function oneStep(){
+  applyBC(S);
+  updateViscosity(S);
+
+  advectU(S);
+  advectV(S);
+
+  diffuseU(S);
+  diffuseV(S);
+
+  applyBC(S);
+
+  computeDivergence(S);
+  solvePressure(S);
+  project(S);
+
+  applyBC(S);
+
+  computeDivergence(S);
+  computeCFL(S);
+
+  S.step++;
+}
+
+function stepMany(n=200){
+  for(let k=0;k<n;k++){
+    oneStep();
+
+    if(S.step % S.P.checkEvery === 0){
+      measureVelChangeRMS(S);
+      const conv = checkConvergence(S);
+      copyToPrev(S);
+      if(conv && S.P.autoStop){ stop(); break; }
+    }
+    if(S.step % S.P.plotEvery === 0){
+      ui('mini').textContent = `step: ${S.step}`;
+      updateStats();
+      drawAll(false);
+    }
+  }
+  ui('mini').textContent = `step: ${S.step}`;
+  updateStats();
+  drawAll(false);
+}
+
+function runLoop(){
+  if(!running) return;
+  stepMany(30);
+  rafId = requestAnimationFrame(runLoop);
+}
+
+function stop(){
+  running=false;
+  if(rafId) cancelAnimationFrame(rafId);
+  rafId=null;
+  ui('btnRun').textContent='Run';
+}
+
+function start(){
+  running=true;
+  ui('btnRun').textContent='Stop';
+  ui('mini2').textContent='status: running';
+  rafId = requestAnimationFrame(runLoop);
+}
+
+function reset(){
+  stop();
+  const P = readParams();
+  S = allocSim(P);
+
+  S.u.fill(0); S.v.fill(0); S.p.fill(0);
+  applyBC(S);
+  updateViscosity(S);
+  computeDivergence(S);
+  computeCFL(S);
+
+  copyToPrev(S);
+  S.lastVelRMS = Number.POSITIVE_INFINITY;
+  S.convStreak = 0;
+  S.converged = false;
+
+  ui('mini').textContent = `step: ${S.step}`;
+  ui('mini2').textContent = 'status: ready';
+  updateEstimateBox();
+  updateStats();
+  drawAll(true);
+  requestAnimationFrame(()=>drawAll(true));
+}
+
+
+function drawColourbar(canvas, field){
+  // Draw the same colour mapping used in drawField: blue->green->yellow->red.
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width = Math.max(1, canvas.clientWidth);
+  const h = canvas.height = Math.max(1, canvas.clientHeight);
+  const img = ctx.createImageData(w, h);
+
+  function colourForT(t){
+    t = clamp(t,0,1);
+    let r,g,b;
+    if(t<0.25){ const q=t/0.25; r=0; g=Math.round(128*q); b=255; }
+    else if(t<0.5){ const q=(t-0.25)/0.25; r=0; g=128+Math.round(127*q); b=255-Math.round(255*q); }
+    else if(t<0.75){ const q=(t-0.5)/0.25; r=Math.round(255*q); g=255; b=0; }
+    else{ const q=(t-0.75)/0.25; r=255; g=255-Math.round(200*q); b=0; }
+    return [r,g,b];
+  }
+
+  for(let x=0; x<w; x++){
+    const t = x/(w-1);
+    const [r,g,b] = colourForT(t);
+    for(let y=0; y<h; y++){
+      const k = 4*(x + w*y);
+      img.data[k+0]=r;
+      img.data[k+1]=g;
+      img.data[k+2]=b;
+      img.data[k+3]=255;
+    }
+  }
+  ctx.putImageData(img,0,0);
+}
+
+function setColourbarLabels(which, minV, maxV, unit, constValue=null){
+  // Labels should remain stable (no "jumping") and should be sensible when the field is nearly constant.
+  const isConst = (constValue !== null && Number.isFinite(constValue));
+  const midV = isConst ? constValue : 0.5*(minV + maxV);
+
+  const fmt = (x)=>{
+    if(!Number.isFinite(x)) return '0';
+    const ax = Math.abs(x);
+    if(ax === 0) return '0';
+    if(ax >= 1e4 || ax < 1e-2) return x.toExponential(3);
+    // trim noisy trailing zeros but keep readability
+    return x.toFixed(4).replace(/\.?(0+)$/,'');
+  };
+
+  if(which==='vel'){
+    ui('cbVelMin').textContent = fmt(isConst ? constValue : minV);
+    ui('cbVelMid').textContent = fmt(midV);
+    ui('cbVelMax').textContent = fmt(isConst ? constValue : maxV);
+    ui('cbVelNote').textContent = isConst ? '(constant field)' : '';
+  }else if(which==='p'){
+    ui('cbPMin').textContent = fmt(isConst ? constValue : minV);
+    ui('cbPMid').textContent = fmt(midV);
+    ui('cbPMax').textContent = fmt(isConst ? constValue : maxV);
+    ui('cbPNote').textContent = isConst ? '(constant field)' : '';
+  }
+}
+
+function drawField(S, ctx0, ctx1, wrapEl, field, overlays){
+  const {nx,ny} = S.P;
+  const w = wrapEl.clientWidth;
+  const h = wrapEl.clientHeight;
+
+  const margin=8;
+  const sx=(w-2*margin)/nx;
+  const sy=(h-2*margin)/ny;
+  const s=Math.min(sx,sy);
+  const ox=margin + 0.5*(w-2*margin - s*nx);
+  const oy=margin + 0.5*(h-2*margin - s*ny);
+
+  ctx0.clearRect(0,0,w,h);
+  ctx1.clearRect(0,0,w,h);
+
+  let minV=1e30, maxV=-1e30;
+
+  function sample(i,j){
+    const id=idx(i,j,nx);
+    if(!isFluid(S,i,j)) return NaN;
+    if(field==='p') return S.p[id];
+    const uc = centreU(S,i,j);
+    const vc = centreV(S,i,j);
+    return Math.hypot(uc,vc);
+  }
+
+  for(let j=0;j<ny;j++){
+    for(let i=0;i<nx;i++){
+      const v=sample(i,j);
+      if(!Number.isFinite(v)) continue;
+      if(v<minV) minV=v;
+      if(v>maxV) maxV=v;
+    }
+  }
+  if(minV===1e30){ minV=0; maxV=1; }
+  let constValue = null;
+  if(Math.abs(maxV-minV)<1e-12){
+    // Keep colour mapping numerically safe, but label the legend as constant.
+    constValue = minV;
+    maxV = minV + 1;
+  }
+
+  // simple blue->green->yellow->red
+  for(let j=0;j<ny;j++){
+    for(let i=0;i<nx;i++){
+      const x=ox+i*s;
+      const y=oy+(ny-1-j)*s;
+
+      if(!isFluid(S,i,j)){
+        ctx0.fillStyle='#eef0f3';
+        ctx0.fillRect(x,y,s,s);
+        continue;
+      }
+
+      const val=sample(i,j);
+      const t=clamp((val-minV)/(maxV-minV),0,1);
+
+      let r,g,b;
+      if(t<0.25){ const q=t/0.25; r=0; g=Math.round(128*q); b=255; }
+      else if(t<0.5){ const q=(t-0.25)/0.25; r=0; g=128+Math.round(127*q); b=255-Math.round(255*q); }
+      else if(t<0.75){ const q=(t-0.5)/0.25; r=Math.round(255*q); g=255; b=0; }
+      else{ const q=(t-0.75)/0.25; r=255; g=255-Math.round(200*q); b=0; }
+
+      ctx0.fillStyle=`rgb(${r},${g},${b})`;
+      ctx0.fillRect(x,y,s,s);
+    }
+  }
+
+  if(overlays.showMesh){
+    ctx1.strokeStyle='rgba(0,0,0,0.08)';
+    ctx1.lineWidth=1;
+    ctx1.beginPath();
+    for(let i=0;i<=nx;i++){
+      const x=ox+i*s;
+      ctx1.moveTo(x,oy);
+      ctx1.lineTo(x,oy+ny*s);
+    }
+    for(let j=0;j<=ny;j++){
+      const y=oy+j*s;
+      ctx1.moveTo(ox,y);
+      ctx1.lineTo(ox+nx*s,y);
+    }
+    ctx1.stroke();
+  }
+
+  // geometry outline
+  ctx1.strokeStyle='rgba(0,0,0,0.35)';
+  ctx1.lineWidth=2;
+  ctx1.beginPath();
+  for(let j=0;j<ny;j++){
+    for(let i=0;i<nx;i++){
+      if(!isFluid(S,i,j)) continue;
+      const x0=ox+i*s;
+      const y0=oy+(ny-1-j)*s;
+      const x1=x0+s, y1=y0+s;
+
+      if(!isFluid(S,i-1,j)){ ctx1.moveTo(x0,y0); ctx1.lineTo(x0,y1); }
+      if(!isFluid(S,i+1,j)){ ctx1.moveTo(x1,y0); ctx1.lineTo(x1,y1); }
+      if(!isFluid(S,i,j-1)){ ctx1.moveTo(x0,y1); ctx1.lineTo(x1,y1); }
+      if(!isFluid(S,i,j+1)){ ctx1.moveTo(x0,y0); ctx1.lineTo(x1,y0); }
+    }
+  }
+  ctx1.stroke();
+
+  if(overlays.showVec){
+    const stride = Math.max(3, Math.floor(Math.min(nx,ny)/24));
+    ctx1.strokeStyle='rgba(0,0,0,0.55)';
+    ctx1.lineWidth=1;
+    for(let j=0;j<ny;j+=stride){
+      for(let i=0;i<nx;i+=stride){
+        if(!isFluid(S,i,j)) continue;
+        const uc=centreU(S,i,j);
+        const vc=centreV(S,i,j);
+        const mag=Math.hypot(uc,vc);
+        if(mag<1e-9) continue;
+
+        const cx=ox+(i+0.5)*s;
+        const cy=oy+(ny-1-j+0.5)*s;
+
+        const L=0.8*stride*s;
+        const ux=(uc/mag)*L;
+        const uy=(-vc/mag)*L;
+
+        ctx1.beginPath();
+        ctx1.moveTo(cx,cy);
+        ctx1.lineTo(cx+ux,cy+uy);
+        ctx1.stroke();
+      }
+    }
+  }
+
+  if(overlays.showStream){
+    ctx1.strokeStyle='rgba(0,0,0,0.35)';
+    ctx1.lineWidth=1;
+    const seeds=14;
+    const {dx,dy} = S.P;
+
+    // seed along inlet, trace in physical-ish units using dtau (not solver dt)
+    for(let sIdx=0;sIdx<seeds;sIdx++){
+      const fj=(sIdx+0.5)/seeds;
+      const yCell = S.g.inlet_j0 + fj*(S.g.inlet_j1 - S.g.inlet_j0);
+      let x = 0.5;
+      let y = yCell + 0.5;
+
+      ctx1.beginPath();
+      for(let k=0;k<700;k++){
+        const i=Math.floor(x);
+        const j=Math.floor(y);
+        if(i<0||i>=nx||j<0||j>=ny) break;
+        if(!isFluid(S,i,j)) break;
+
+        const uc=centreU(S,i,j);
+        const vc=centreV(S,i,j);
+
+        // step length in "cells" based on a fixed physical arc step
+        const dsPhys = 0.002*Math.min(S.P.Lx,S.P.Ly); // 0.2% of domain
+        const mag = Math.hypot(uc,vc);
+        if(mag<1e-9) break;
+        const dtau = dsPhys / mag; // s
+
+        x += (uc*dtau)/dx;
+        y += (vc*dtau)/dy;
+
+        const px=ox+x*s;
+        const py=oy+(ny-y)*s;
+        if(k===0) ctx1.moveTo(px,py); else ctx1.lineTo(px,py);
+        if(y>ny-1.5) break;
+      }
+      ctx1.stroke();
+    }
+  }
+
+  ctx1.fillStyle='rgba(0,0,0,0.7)';
+  ctx1.font='12px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
+  const unit = (field==='p') ? 'Pa' : 'm/s';
+  const label = (field==='p') ? 'p' : '|v|';
+  setColourbarLabels(field==='p' ? 'p' : 'vel', minV, maxV, unit, constValue);
+  ctx1.fillText(`${label} range: ${minV.toExponential(3)} to ${maxV.toExponential(3)} ${unit}`, 12, 18);
+}
+
+function drawAll(force){
+  if(!S) return;
+  const Pui = readParams();
+  // keep runtime values that can be edited live
+  S.P.plotEvery = Pui.plotEvery;
+  S.P.checkEvery = Pui.checkEvery;
+  S.P.divTol = Pui.divTol;
+  S.P.velTol = Pui.velTol;
+  S.P.autoStop = Pui.autoStop;
+
+  const overlaysVel = { showMesh:Pui.showMesh, showVec:Pui.showVec, showStream:Pui.showStream };
+  const overlaysP   = { showMesh:Pui.showMeshP, showVec:false, showStream:false };
+
+  drawField(S, ctxVel0, ctxVel1, ui('wrapVel'), 'speed', overlaysVel);
+  drawField(S, ctxP0,   ctxP1,   ui('wrapP'),   'p', overlaysP);
+}
+
+function updateStats(){
+  if(!S) return;
+  const P=S.P, g=S.g;
+  const [muLo,muHi] = S.lastMuRange;
+
+  // Reynolds number based on inlet width and a reference viscosity estimate (using current muLo as rough lower bound)
+  const H = Math.max(1e-12, g.win_j * P.dy); // m
+  const muRef = Math.max(1e-12, 0.5*(muLo+muHi) || P.muMin);
+  const Re = (P.rho * Math.abs(P.uin) * H) / muRef;
+
+  const lines=[];
+  lines.push(`Step: ${S.step}`);
+  lines.push(`dx = ${(P.dx).toExponential(3)} m, dy = ${(P.dy).toExponential(3)} m`);
+  lines.push(`Max |∇·v| (after projection): ${S.lastMaxDiv.toExponential(3)} 1/s`);
+  lines.push(`Pressure solver residual (SOR): ${S.lastResidual.toExponential(3)} Pa`);
+  lines.push(`CFL indicator dt*(|u|/dx + |v|/dy): ${S.lastCFL.toFixed(3)} (dimensionless)`);
+  lines.push(`μeff range (clamped): ${muLo.toExponential(3)} to ${muHi.toExponential(3)} Pa·s`);
+  lines.push(`Re estimate (teaching): ${Re.toFixed(1)} [H=inlet width, μ≈mean μeff]`);
+  lines.push(`RMS Δu (interior faces): ${Number.isFinite(S.lastVelRMS) ? S.lastVelRMS.toExponential(3) : 'n/a'} m/s`);
+  lines.push(`Convergence streak: ${S.convStreak} (needs 3 checks)`);
+  lines.push('');
+  lines.push(`Geometry (cells): turn_i=${g.turn_i}, turn_j=${g.turn_j}, Win=${g.win_j}, Wout=${g.wout_i}, block=${g.block.b} cells`);
+  ui('stats').textContent = lines.join('\n');
+}
+
+function updateEstimateBox(){
+  const t=[];
+  t.push(`Power-law viscosity model (SI):`);
+  t.push(`  μeff = K * (γ̇² + γ̇0²)^((n-1)/2)`);
+  t.push(`Units:`);
+  t.push(`  γ̇, γ̇0 in 1/s`);
+  t.push(`  μeff in Pa·s`);
+  t.push(`  n is dimensionless`);
+  t.push(`  K in Pa·sⁿ`);
+  t.push('');
+  t.push(`If n = 1, then μeff = K (Newtonian viscosity).`);
+  t.push(`If n < 1, shear-thinning; if n > 1, shear-thickening.`);
+  t.push('');
+  t.push(`Tip: choose a target viscosity μ* at a reference shear rate γ̇*:`);
+  t.push(`  K = μ* / ( (γ̇*² + γ̇0²)^((n-1)/2) )`);
+  ui('estimateBox').textContent = t.join('\n');
+}
+
+// UI wiring
+ui('btnReset').addEventListener('click', reset);
+ui('btnStep').addEventListener('click', ()=>stepMany(200));
+ui('btnRun').addEventListener('click', ()=>{
+  if(!S) reset();
+  if(running) stop(); else start();
+});
+
+// Inputs that change grid/geometry/physics: full reset
+for(const id of ['Lx','Ly','nx','ny','dt','gsIts','relaxP','relaxUV','rho','K','n','g0','muMin','muMax','uin','pout',
+                 'turnX','turnY','win','wout','blockSize','blockOffset','blockSide']){
+  ui(id).addEventListener('change', ()=>reset());
+}
+// Live toggles/cadence
+for(const id of ['plotEvery','checkEvery','divTol','velTol','autoStop','showMesh','showVec','showStream','showMeshP']){
+  ui(id).addEventListener('change', ()=>{
+    if(!S) return;
+    drawAll(true);
+    updateStats();
+  });
+}
+
+reset();
+requestAnimationFrame(()=>{ drawColourbar(ui('cbVel'),'vel'); drawColourbar(ui('cbP'),'p'); resizeCanvases(); });
+requestAnimationFrame(()=>{ resizeCanvases(); });
+</script>
+</body>
+</html>

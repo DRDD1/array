@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Archimedes π Estimator (Polygons)</title>
+  <style>
+    :root{
+      --bg:#0b0d12;
+      --panel:#121625;
+      --panel2:#0f1320;
+      --text:#e9ecf5;
+      --muted:#b6bdd6;
+      --accent:#8fb3ff;
+      --good:#7cf2b0;
+      --warn:#ffd27a;
+      --bad:#ff7a9a;
+      --grid:#29304a;
+      --line:#2a3352;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1100px 600px at 10% 10%, #121a33 0%, var(--bg) 60%);
+      color:var(--text);
+      line-height:1.35;
+    }
+    header{
+      padding:18px 18px 0 18px;
+      max-width:1100px;
+      margin:0 auto;
+    }
+    h1{font-size:20px;margin:0 0 6px 0;font-weight:700}
+    .sub{color:var(--muted);font-size:13px;margin:0 0 14px 0}
+    .wrap{
+      max-width:1100px;
+      margin:0 auto;
+      padding:0 18px 22px 18px;
+      display:grid;
+      grid-template-columns: 380px 1fr;
+      gap:14px;
+    }
+    @media (max-width: 980px){
+      .wrap{grid-template-columns:1fr}
+    }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border:1px solid rgba(255,255,255,0.08);
+      border-radius:16px;
+      padding:14px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+    }
+    .card h2{font-size:14px;margin:0 0 10px 0;color:var(--muted);font-weight:650;letter-spacing:0.2px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    label{font-size:13px;color:var(--muted)}
+    input[type="range"]{width:100%}
+    input[type="number"]{
+      width: 130px;
+      padding:8px 10px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.12);
+      background: var(--panel2);
+      color: var(--text);
+      outline:none;
+    }
+    button{
+      padding:9px 11px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,0.12);
+      background: rgba(143,179,255,0.12);
+      color: var(--text);
+      cursor:pointer;
+      font-weight:650;
+    }
+    button:hover{background: rgba(143,179,255,0.18)}
+    .pill{
+      display:inline-block;
+      padding:5px 9px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.04);
+      font-size:12px;
+      color:var(--muted);
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      margin-top:10px;
+    }
+    .metric{
+      padding:10px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,0.08);
+      background: rgba(0,0,0,0.14);
+    }
+    .metric .k{font-size:12px;color:var(--muted);margin-bottom:6px}
+    .metric .v{font-size:16px;font-weight:750}
+    .metric .s{font-size:12px;color:var(--muted);margin-top:6px}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    canvas{
+      width:100%;
+      height:auto;
+      display:block;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.12);
+    }
+    .note{font-size:12px;color:var(--muted);margin-top:10px}
+    .hr{height:1px;background:rgba(255,255,255,0.10);margin:12px 0}
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .footer{
+      max-width:1100px;
+      margin:0 auto;
+      padding:0 18px 28px 18px;
+    }
+    .history{
+      font-size:14px;
+      color:var(--text);
+    }
+    .history p{color:var(--text);opacity:0.95}
+    .history .math{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      padding:10px 12px;
+      border-radius:12px;
+      background: rgba(0,0,0,0.18);
+      border:1px solid rgba(255,255,255,0.10);
+      overflow:auto;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Archimedes approach to π using inscribed and circumscribed polygons</h1>
+  <p class="sub">Choose the number of sides <span class="mono">n</span>, visualise the polygons around a unit circle, and read off lower and upper bounds for π.</p>
+</header>
+
+<div class="wrap">
+  <section class="card" aria-label="Controls">
+    <h2>Controls</h2>
+
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <label for="nRange">Number of sides (n)</label>
+      <span class="pill mono" id="nPill">n = 96</span>
+    </div>
+
+    <input id="nRange" type="range" min="3" max="4096" step="1" value="96" />
+    <div class="row" style="justify-content:space-between;margin-top:8px">
+      <div class="row">
+        <label for="nNumber">Set n directly</label>
+        <input id="nNumber" type="number" min="3" max="1000000" value="96" />
+      </div>
+      <div class="row">
+        <button id="doubleBtn" title="Double n (like Archimedes' repeated doubling)">Double n</button>
+        <button id="resetBtn" title="Reset to 96 sides">Reset</button>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="row" style="gap:12px;align-items:flex-start">
+      <div style="flex:1">
+        <label><input id="showIn" type="checkbox" checked /> Show inscribed polygon</label><br />
+        <label><input id="showOut" type="checkbox" checked /> Show circumscribed polygon</label><br />
+        <label><input id="showRays" type="checkbox" /> Show radii</label><br />
+        <label><input id="showVerts" type="checkbox" /> Show vertices</label>
+      </div>
+      <div style="flex:1">
+        <label><input id="lockScale" type="checkbox" checked /> Keep view fixed (recommended)</label><br />
+        <label><input id="smoothDraw" type="checkbox" checked /> Anti-alias strokes</label><br />
+        <label><input id="autoUpdate" type="checkbox" checked /> Update while dragging</label>
+      </div>
+    </div>
+
+    <div class="grid" aria-label="Metrics">
+      <div class="metric">
+        <div class="k">Lower bound for π (inscribed)</div>
+        <div class="v mono" id="piLower">3.1410</div>
+        <div class="s">π ≥ P<sub>in</sub> / 2 for R = 1</div>
+      </div>
+      <div class="metric">
+        <div class="k">Upper bound for π (circumscribed)</div>
+        <div class="v mono" id="piUpper">3.1427</div>
+        <div class="s">π ≤ P<sub>out</sub> / 2 for R = 1</div>
+      </div>
+      <div class="metric">
+        <div class="k">Mid estimate (average of bounds)</div>
+        <div class="v mono" id="piMid">3.1419</div>
+        <div class="s">Often closer than either bound</div>
+      </div>
+      <div class="metric">
+        <div class="k">True π (JavaScript)</div>
+        <div class="v mono" id="piTrue">3.141592653589793</div>
+        <div class="s">Math.PI (double precision)</div>
+      </div>
+    </div>
+
+    <div class="grid" aria-label="Errors">
+      <div class="metric">
+        <div class="k">Upper minus lower</div>
+        <div class="v mono" id="gap">0.0017</div>
+        <div class="s">Bound width shrinks as n increases</div>
+      </div>
+      <div class="metric">
+        <div class="k">Digits correct (mid estimate)</div>
+        <div class="v mono" id="digits">3</div>
+        <div class="s">Counted from the first digit after decimal</div>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+
+    <h2>Computational effort (rough)</h2>
+    <div class="metric">
+      <div class="k">Complexity</div>
+      <div class="v mono" id="complexity">O(n) to draw, O(1) to compute bounds</div>
+      <div class="s">
+        Bounds can be computed from <span class="mono">sin(π/n)</span> and <span class="mono">tan(π/n)</span>.
+        Visualisation uses <span class="mono">n</span> vertices, so drawing work scales with <span class="mono">n</span>.
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="metric">
+        <div class="k">Vertices drawn</div>
+        <div class="v mono" id="verts">192</div>
+        <div class="s">Inscribed + circumscribed (if both selected)</div>
+      </div>
+      <div class="metric">
+        <div class="k">Operations estimate</div>
+        <div class="v mono" id="ops">~ 1,000</div>
+        <div class="s">Adds, multiplies, trig calls (very approximate)</div>
+      </div>
+    </div>
+
+    <p class="note">
+      Tip: Doubling <span class="mono">n</span> mirrors Archimedes’ strategy of tightening bounds by repeatedly doubling the number of polygon sides.
+    </p>
+  </section>
+
+  <section class="card" aria-label="Visualisation">
+    <h2>Visualisation</h2>
+    <canvas id="cv" width="760" height="760" aria-label="Circle and polygons visualisation"></canvas>
+    <p class="note">
+      The circle has radius R = 1 in the underlying maths, but the drawing is scaled to fit the canvas.
+      The inscribed polygon sits inside the circle, the circumscribed polygon touches the circle from outside.
+    </p>
+  </section>
+</div>
+
+<div class="footer">
+  <section class="card history" aria-label="History and explanation">
+    <h2>Explanation and history (Archimedes’ polygon method)</h2>
+
+    <p>
+      Archimedes’ approximation of π is one of the earliest examples of rigorous numerical estimation in mathematics.
+      The key idea is geometric: for a circle, π is defined by the ratio of circumference to diameter. If we can trap the circumference between two quantities
+      that we can compute, then we can trap π between two numbers as well.
+    </p>
+
+    <p>
+      Consider a circle of radius <span class="mono">R</span>. Its circumference is <span class="mono">C = 2πR</span>.
+      Now place a regular polygon with <span class="mono">n</span> sides inside the circle (an inscribed polygon). Its perimeter <span class="mono">P_in</span>
+      is strictly less than the circumference, because its straight edges cut inside the curved arc. This gives a lower bound:
+    </p>
+
+    <div class="math" role="math">
+      Inscribed:  P_in &lt; 2πR  ⇒  π &gt; P_in / (2R)
+    </div>
+
+    <p>
+      Next, place a regular polygon with <span class="mono">n</span> sides around the circle so that each side is tangent to the circle (a circumscribed polygon).
+      Its perimeter <span class="mono">P_out</span> is strictly greater than the circumference, because it wraps around the circle from the outside. This gives an upper bound:
+    </p>
+
+    <div class="math" role="math">
+      Circumscribed:  P_out &gt; 2πR  ⇒  π &lt; P_out / (2R)
+    </div>
+
+    <p>
+      The strength of the method is that both perimeters can be computed from elementary geometry. For a regular <span class="mono">n</span>-gon with circumradius <span class="mono">R</span>,
+      the central angle between adjacent vertices is <span class="mono">2π/n</span>.
+      The inscribed side is the chord length, so:
+    </p>
+
+    <div class="math" role="math">
+      s_in = 2R sin(π/n),  so  P_in = n s_in = 2nR sin(π/n)
+    </div>
+
+    <p>
+      For the circumscribed polygon, each side is tangent to the circle, and the relevant triangle uses the tangent function:
+    </p>
+
+    <div class="math" role="math">
+      s_out = 2R tan(π/n),  so  P_out = n s_out = 2nR tan(π/n)
+    </div>
+
+    <p>
+      Taking <span class="mono">R = 1</span> (the choice used in this app), the bounds become especially simple:
+      <span class="mono">π</span> lies between <span class="mono">n sin(π/n)</span> and <span class="mono">n tan(π/n)</span>.
+      As <span class="mono">n</span> increases, the polygons resemble the circle more closely and the gap between the bounds decreases.
+      In modern terms, one can show the error shrinks on the order of <span class="mono">1/n²</span> for large <span class="mono">n</span>, which explains why doubling <span class="mono">n</span>
+      makes a noticeable improvement.
+    </p>
+
+    <p>
+      Historically, Archimedes did not write his method using sines and tangents (those came much later). Instead, he relied on careful geometric inequalities
+      and repeated bisection of angles, effectively doubling the number of sides from a hexagon to a 12-gon, 24-gon, 48-gon, and finally a 96-gon.
+      Using this, he produced the famous bounds <span class="mono">3 10/71 &lt; π &lt; 3 1/7</span>, which correspond to approximately
+      <span class="mono">3.1408 &lt; π &lt; 3.142857</span>. That is a striking achievement given the tools available at the time.
+    </p>
+
+    <p>
+      From a computational perspective, there are two different “effort” stories. If you only want the numerical bounds and you allow modern functions
+      like <span class="mono">sin</span> and <span class="mono">tan</span>, then computing the bounds is effectively constant time: evaluate <span class="mono">sin(π/n)</span>,
+      evaluate <span class="mono">tan(π/n)</span>, then perform a few multiplications.
+      In contrast, the visualisation in this page explicitly draws the polygon edges by plotting <span class="mono">n</span> vertices, so the rendering workload
+      grows linearly with <span class="mono">n</span>. This is why extremely large values of <span class="mono">n</span> can be numerically cheap but visually expensive.
+      Archimedes’ original approach was closer to an iterative doubling scheme, where each doubling step uses previously computed lengths and a small set of
+      square root operations, which is closer to <span class="mono">O(log n)</span> steps if you only consider the sequence of doublings.
+    </p>
+
+    <p>
+      For more background, including the historical sources and later refinements, see the Wikipedia page:
+      <a href="https://en.wikipedia.org/wiki/Approximations_of_%CF%80" target="_blank" rel="noopener">Approximations of π (Wikipedia)</a>.
+    </p>
+  </section>
+</div>
+
+<script>
+(function(){
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+
+  const nRange = document.getElementById('nRange');
+  const nNumber = document.getElementById('nNumber');
+  const nPill = document.getElementById('nPill');
+  const doubleBtn = document.getElementById('doubleBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const showIn = document.getElementById('showIn');
+  const showOut = document.getElementById('showOut');
+  const showRays = document.getElementById('showRays');
+  const showVerts = document.getElementById('showVerts');
+  const lockScale = document.getElementById('lockScale');
+  const smoothDraw = document.getElementById('smoothDraw');
+  const autoUpdate = document.getElementById('autoUpdate');
+
+  const piLowerEl = document.getElementById('piLower');
+  const piUpperEl = document.getElementById('piUpper');
+  const piMidEl   = document.getElementById('piMid');
+  const piTrueEl  = document.getElementById('piTrue');
+  const gapEl     = document.getElementById('gap');
+  const digitsEl  = document.getElementById('digits');
+  const vertsEl   = document.getElementById('verts');
+  const opsEl     = document.getElementById('ops');
+  const complexityEl = document.getElementById('complexity');
+
+  const PI = Math.PI;
+  piTrueEl.textContent = PI.toString();
+
+  function clampInt(x, lo, hi){
+    x = Math.round(Number(x));
+    if (!Number.isFinite(x)) return lo;
+    return Math.max(lo, Math.min(hi, x));
+  }
+
+  function fmt(x, digits=10){
+    if (!Number.isFinite(x)) return "NaN";
+    const s = x.toFixed(digits);
+    return s.replace(/(\.\d*?[1-9])0+$/,'$1').replace(/\.0+$/,".0");
+  }
+
+  function countCorrectDigits(estimate, truth){
+    const a = estimate.toFixed(14);
+    const b = truth.toFixed(14);
+    const da = a.split('.')[1] || "";
+    const db = b.split('.')[1] || "";
+    let k = 0;
+    for (let i=0;i<Math.min(da.length, db.length);i++){
+      if (da[i] !== db[i]) break;
+      k++;
+    }
+    return k;
+  }
+
+  function computeBounds(n){
+    const angle = PI / n;
+    const sinv = Math.sin(angle);
+    const tanv = Math.tan(angle);
+
+    const P_in  = 2 * n * sinv; // R=1
+    const P_out = 2 * n * tanv; // R=1
+
+    const piLower = P_in / 2;
+    const piUpper = P_out / 2;
+    const piMid = 0.5 * (piLower + piUpper);
+
+    return {piLower, piUpper, piMid};
+  }
+
+  function makeVerticesInscribed(n, R, cx, cy){
+    const verts = [];
+    for (let k=0;k<n;k++){
+      const t = (2*PI*k)/n - PI/2;
+      verts.push([cx + R*Math.cos(t), cy + R*Math.sin(t)]);
+    }
+    return verts;
+  }
+
+  function makeVerticesCircumscribed(n, R, cx, cy){
+    const Rc = R / Math.cos(PI/n);
+    const verts = [];
+    for (let k=0;k<n;k++){
+      const t = (2*PI*k)/n - PI/2;
+      verts.push([cx + Rc*Math.cos(t), cy + Rc*Math.sin(t)]);
+    }
+    return verts;
+  }
+
+  function drawPolygon(verts, strokeStyle, lineWidth, fillStyle=null){
+    if (!verts.length) return;
+    ctx.beginPath();
+    ctx.moveTo(verts[0][0], verts[0][1]);
+    for (let i=1;i<verts.length;i++) ctx.lineTo(verts[i][0], verts[i][1]);
+    ctx.closePath();
+    if (fillStyle){
+      ctx.fillStyle = fillStyle;
+      ctx.fill();
+    }
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+  }
+
+  function drawVertices(verts, style){
+    ctx.fillStyle = style;
+    for (const [x,y] of verts){
+      ctx.beginPath();
+      ctx.arc(x,y,2.2,0,2*PI);
+      ctx.fill();
+    }
+  }
+
+  function drawRadii(verts, cx, cy, style){
+    ctx.strokeStyle = style;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const [x,y] of verts){
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  function draw(){
+    const n = clampInt(nNumber.value, 3, 1000000);
+
+    nRange.value = String(Math.min(4096, n));
+    nPill.textContent = `n = ${n}`;
+
+    const {piLower, piUpper, piMid} = computeBounds(n);
+    piLowerEl.textContent = fmt(piLower, 10);
+    piUpperEl.textContent = fmt(piUpper, 10);
+    piMidEl.textContent   = fmt(piMid, 10);
+
+    const gap = piUpper - piLower;
+    gapEl.textContent = fmt(gap, 10);
+
+    digitsEl.textContent = String(countCorrectDigits(piMid, PI));
+
+    const drawIn = showIn.checked;
+    const drawOut = showOut.checked;
+    const nDraw = (drawIn ? n : 0) + (drawOut ? n : 0);
+    vertsEl.textContent = String(nDraw);
+
+    const trigForBounds = 2;
+    const trigForDrawing = (drawIn ? 2*n : 0) + (drawOut ? 2*n : 0);
+    const opsApprox = Math.round(200 + 20*nDraw + 50*trigForBounds + 50*trigForDrawing);
+    opsEl.textContent = `~ ${opsApprox.toLocaleString("en-GB")}`;
+
+    complexityEl.textContent = (nDraw > 0)
+      ? `O(n) to draw, O(1) to compute bounds`
+      : `O(1) to compute bounds (drawing disabled)`;
+
+    ctx.clearRect(0,0,cv.width,cv.height);
+
+    // Background grid
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim() || '#29304a';
+    ctx.lineWidth = 1;
+    const step = 40;
+    for (let x=0;x<=cv.width;x+=step){
+      ctx.beginPath();
+      ctx.moveTo(x,0); ctx.lineTo(x,cv.height);
+      ctx.stroke();
+    }
+    for (let y=0;y<=cv.height;y+=step){
+      ctx.beginPath();
+      ctx.moveTo(0,y); ctx.lineTo(cv.width,y);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    const cx = cv.width/2, cy = cv.height/2;
+    const R = lockScale.checked ? (cv.width*0.32) : (cv.width*0.36);
+    ctx.imageSmoothingEnabled = smoothDraw.checked;
+
+    // Circle
+    ctx.beginPath();
+    ctx.arc(cx,cy,R,0,2*PI);
+    ctx.strokeStyle = "rgba(255,255,255,0.88)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Polygons
+    if (drawIn){
+      const vin = makeVerticesInscribed(Math.min(n, 200000), R, cx, cy);
+      drawPolygon(vin, "rgba(124,242,176,0.95)", 2, "rgba(124,242,176,0.08)");
+      if (showRays.checked) drawRadii(vin, cx, cy, "rgba(124,242,176,0.25)");
+      if (showVerts.checked) drawVertices(vin, "rgba(124,242,176,0.95)");
+    }
+    if (drawOut){
+      const nVis = Math.min(n, 200000);
+      const vout = makeVerticesCircumscribed(nVis, R, cx, cy);
+      drawPolygon(vout, "rgba(143,179,255,0.95)", 2, "rgba(143,179,255,0.06)");
+      if (showRays.checked) drawRadii(vout, cx, cy, "rgba(143,179,255,0.18)");
+      if (showVerts.checked) drawVertices(vout, "rgba(143,179,255,0.95)");
+    }
+
+    // Legend box
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(18, 18, 320, 120, 14);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.font = "14px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif";
+    ctx.fillText("Legend", 32, 44);
+
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.82)";
+
+    // Circle
+    ctx.strokeStyle = "rgba(255,255,255,0.88)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(32, 62); ctx.lineTo(78, 62); ctx.stroke();
+    ctx.fillText("Circle (R = 1 in maths)", 92, 66);
+
+    // Inscribed
+    ctx.strokeStyle = "rgba(124,242,176,0.95)";
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(32, 84); ctx.lineTo(78, 84); ctx.stroke();
+    ctx.fillText("Inscribed polygon (lower bound)", 92, 88);
+
+    // Circumscribed
+    ctx.strokeStyle = "rgba(143,179,255,0.95)";
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(32, 106); ctx.lineTo(78, 106); ctx.stroke();
+    ctx.fillText("Circumscribed polygon (upper bound)", 92, 110);
+
+    ctx.restore();
+  }
+
+  function setN(val){
+    const n = clampInt(val, 3, 1000000);
+    nNumber.value = String(n);
+    draw();
+  }
+
+  // Events
+  nRange.addEventListener('input', () => {
+    if (!autoUpdate.checked) return;
+    setN(nRange.value);
+  });
+  nRange.addEventListener('change', () => setN(nRange.value));
+
+  nNumber.addEventListener('change', () => setN(nNumber.value));
+  nNumber.addEventListener('keyup', (e) => {
+    if (e.key === 'Enter') setN(nNumber.value);
+  });
+
+  doubleBtn.addEventListener('click', () => {
+    const n = clampInt(nNumber.value, 3, 1000000);
+    setN(Math.min(1000000, n * 2));
+  });
+
+  resetBtn.addEventListener('click', () => setN(96));
+
+  for (const el of [showIn, showOut, showRays, showVerts, lockScale, smoothDraw, autoUpdate]){
+    el.addEventListener('change', draw);
+  }
+
+  // Polyfill roundRect for older browsers
+  if (!CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+      const rr = Math.min(r, w/2, h/2);
+      this.beginPath();
+      this.moveTo(x+rr, y);
+      this.arcTo(x+w, y, x+w, y+h, rr);
+      this.arcTo(x+w, y+h, x, y+h, rr);
+      this.arcTo(x, y+h, x, y, rr);
+      this.arcTo(x, y, x+w, y, rr);
+      this.closePath();
+      return this;
+    };
+  }
+
+  draw();
+})();
+</script>
+</body>
+</html>

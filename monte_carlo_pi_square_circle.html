@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Monte Carlo π: Random points in a square and circle</title>
+  <style>
+    :root{
+      --bg:#0b0d12;
+      --panel:#121625;
+      --panel2:#0f1320;
+      --text:#e9ecf5;
+      --muted:#b6bdd6;
+      --accent:#8fb3ff;
+      --good:#7cf2b0;
+      --bad:#ff7a9a;
+      --grid:#29304a;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1100px 600px at 10% 10%, #121a33 0%, var(--bg) 60%);
+      color:var(--text);
+      line-height:1.35;
+    }
+    header{
+      padding:18px 18px 0 18px;
+      max-width:1200px;
+      margin:0 auto;
+    }
+    h1{font-size:20px;margin:0 0 6px 0;font-weight:700}
+    .sub{color:var(--muted);font-size:13px;margin:0 0 14px 0}
+    .wrap{
+      max-width:1200px;
+      margin:0 auto;
+      padding:0 18px 18px 18px;
+      display:grid;
+      grid-template-columns: 420px 1fr;
+      gap:14px;
+    }
+    @media (max-width: 1050px){ .wrap{grid-template-columns:1fr} }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border:1px solid rgba(255,255,255,0.08);
+      border-radius:16px;
+      padding:14px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+    }
+    .card h2{font-size:14px;margin:0 0 10px 0;color:var(--muted);font-weight:650;letter-spacing:0.2px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    label{font-size:13px;color:var(--muted)}
+    input[type="range"]{width:100%}
+    input[type="number"], input[type="text"]{
+      width: 170px;
+      padding:8px 10px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.12);
+      background: var(--panel2);
+      color: var(--text);
+      outline:none;
+    }
+    button{
+      padding:9px 11px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,0.12);
+      background: rgba(143,179,255,0.12);
+      color: var(--text);
+      cursor:pointer;
+      font-weight:650;
+    }
+    button:hover{background: rgba(143,179,255,0.18)}
+    button:disabled{opacity:0.55;cursor:not-allowed}
+    .pill{
+      display:inline-block;
+      padding:5px 9px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.04);
+      font-size:12px;
+      color:var(--muted);
+    }
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      margin-top:10px;
+    }
+    .metric{
+      padding:10px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,0.08);
+      background: rgba(0,0,0,0.14);
+    }
+    .metric .k{font-size:12px;color:var(--muted);margin-bottom:6px}
+    .metric .v{font-size:16px;font-weight:750}
+    .metric .s{font-size:12px;color:var(--muted);margin-top:6px}
+    .hr{height:1px;background:rgba(255,255,255,0.10);margin:12px 0}
+    canvas{
+      width:100%;
+      height:auto;
+      display:block;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.12);
+    }
+    .legend{
+      display:flex;
+      gap:14px;
+      flex-wrap:wrap;
+      align-items:center;
+      font-size:12px;
+      color:var(--muted);
+      margin-top:8px;
+    }
+    .key{display:flex;gap:8px;align-items:center}
+    .swatch{width:16px;height:6px;border-radius:999px;background:#fff;display:inline-block}
+    .swatch.in{background:rgba(124,242,176,0.95)}
+    .swatch.out{background:rgba(255,122,154,0.95)}
+    .swatch.bound{background:rgba(255,255,255,0.85)}
+    .note{font-size:12px;color:var(--muted);margin-top:10px}
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .footer{
+      max-width:1200px;
+      margin:0 auto;
+      padding:0 18px 28px 18px;
+    }
+    .history p{opacity:0.95}
+    .math{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      padding:10px 12px;
+      border-radius:12px;
+      background: rgba(0,0,0,0.18);
+      border:1px solid rgba(255,255,255,0.10);
+      overflow:auto;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Monte Carlo estimate of π: random points in a square around a circle</h1>
+  <p class="sub">
+    Drop <span class="mono">N</span> random points uniformly in a square of side 2 that contains a unit circle (radius 1).
+    The fraction landing inside the circle estimates <span class="mono">π/4</span>.
+  </p>
+</header>
+
+<div class="wrap">
+  <section class="card" aria-label="Controls and metrics">
+    <h2>Controls</h2>
+
+    <div class="row" style="justify-content:space-between">
+      <label for="targetN">Target points (N)</label>
+      <span class="pill mono" id="nPill">N = 50,000</span>
+    </div>
+    <input id="targetN" type="range" min="100" max="500000" step="100" value="50000" />
+    <div class="row" style="justify-content:space-between;margin-top:8px">
+      <div class="row">
+        <label for="nNumber">Set N directly</label>
+        <input id="nNumber" type="number" min="100" max="5000000" value="50000" />
+      </div>
+      <div class="row">
+        <button id="startBtn">Start</button>
+        <button id="stopBtn" disabled>Stop</button>
+        <button id="resetBtn">Reset</button>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="row" style="justify-content:space-between">
+      <label for="batch">Points per animation step</label>
+      <span class="pill mono" id="batchPill">batch = 1,000</span>
+    </div>
+    <input id="batch" type="range" min="10" max="20000" step="10" value="1000" />
+
+    <div class="row" style="margin-top:10px;justify-content:space-between">
+      <div class="row">
+        <label for="seed">Seed (optional)</label>
+        <input id="seed" type="text" value="" placeholder="leave blank for Math.random()" />
+      </div>
+      <div class="row">
+        <label><input id="thin" type="checkbox" checked /> Thin drawing</label>
+        <label><input id="live" type="checkbox" checked /> Live redraw</label>
+      </div>
+    </div>
+
+    <div class="grid2" aria-label="Metrics">
+      <div class="metric">
+        <div class="k">π estimate</div>
+        <div class="v mono" id="piEst">–</div>
+        <div class="s">π ≈ 4 × (inside / total)</div>
+      </div>
+      <div class="metric">
+        <div class="k">Absolute error</div>
+        <div class="v mono" id="absErr">–</div>
+        <div class="s">|π − estimate|</div>
+      </div>
+      <div class="metric">
+        <div class="k">Points (total, inside)</div>
+        <div class="v mono" id="counts">0, 0</div>
+        <div class="s">total, inside-circle</div>
+      </div>
+      <div class="metric">
+        <div class="k">Statistical uncertainty (rough)</div>
+        <div class="v mono" id="sigma">–</div>
+        <div class="s">~ 4 √(p(1−p)/N), with p≈π/4</div>
+      </div>
+    </div>
+
+    <div class="metric" style="margin-top:10px">
+      <div class="k">Computational effort</div>
+      <div class="v">
+        Each point requires two random numbers and one radius check (<span class="mono">x²+y² ≤ 1</span>), so effort scales as <span class="mono">O(N)</span>.
+        Monte Carlo convergence is slow: the typical error decreases like <span class="mono">1/√N</span>.
+      </div>
+    </div>
+
+    <p class="note">
+      “Thin drawing” skips some points on the canvas (still counted in the maths) so you can run large N without saturating the display.
+      If you want deterministic repeats, provide a seed.
+    </p>
+  </section>
+
+  <section class="card" aria-label="Visualisation">
+    <h2>Visualisation</h2>
+    <canvas id="cv" width="900" height="900" aria-label="Square, circle, and random points"></canvas>
+    <div class="legend">
+      <span class="key"><span class="swatch bound"></span>Square boundary and circle</span>
+      <span class="key"><span class="swatch in"></span>Inside circle</span>
+      <span class="key"><span class="swatch out"></span>Outside circle</span>
+    </div>
+    <p class="note">
+      The square is [-1,1]×[-1,1]. Points are uniformly sampled in the square.
+      The circle is x²+y²=1.
+    </p>
+  </section>
+</div>
+
+<div class="footer">
+  <section class="card history" aria-label="Description and background">
+    <h2>Description and background (Monte Carlo probability method)</h2>
+
+    <p>
+      The Monte Carlo estimate of π is a classic demonstration of how geometry and probability can be combined to estimate a constant.
+      It is not competitive with modern high-precision algorithms for π, but it is conceptually powerful because it relies on very little mathematics.
+      The method begins with a simple geometric fact: if you draw a circle of radius 1 inside a square of side 2, then the circle’s area is π and the square’s area is 4.
+      This leads immediately to a probability statement. If you pick a point uniformly at random in the square, the probability that it lands inside the circle is equal to
+      the ratio of areas:
+    </p>
+
+    <div class="math" role="math">
+      p = P[(x,y) is inside circle] = Area(circle) / Area(square) = π / 4.
+    </div>
+
+    <p>
+      Therefore, if you generate N independent random points and count how many fall inside the circle, say M, then M/N is an empirical estimate of p.
+      Rearranging gives an estimate of π:
+    </p>
+
+    <div class="math" role="math">
+      π ≈ 4 (M / N).
+    </div>
+
+    <p>
+      The core computation is a membership test: a point (x,y) is inside the circle if x²+y² ≤ 1.
+      Everything else is bookkeeping. This makes the method attractive for teaching, because it is easy to implement, easy to visualise, and easy to reason about.
+      You can literally watch the estimate settle as the cloud of points fills the square. The method also highlights the idea that randomness can be used as a numerical tool,
+      which is the defining theme of Monte Carlo methods across scientific computing, from radiative transport to Bayesian inference.
+    </p>
+
+    <p>
+      The weakness of the approach is its convergence rate. The estimate is essentially based on a binomial proportion.
+      If each point is an independent trial with success probability p≈π/4, then M has variance N p(1−p), so the standard deviation of the fraction M/N is
+      √(p(1−p)/N). Multiplying by 4 to obtain π gives a characteristic statistical uncertainty
+    </p>
+
+    <div class="math" role="math">
+      σ_π ≈ 4 √(p(1−p)/N).
+    </div>
+
+    <p>
+      This implies that error typically decreases like 1/√N. That is slow. To gain one extra decimal digit of accuracy you need roughly 100 times more samples.
+      This is very different from methods such as Machin-like formulas or modern rapidly convergent algorithms, where each additional term can buy multiple digits.
+      Nevertheless, Monte Carlo remains valuable because it extends to high-dimensional integrals where “clever” deterministic quadrature becomes impractical.
+      In those settings, the slow 1/√N convergence can still be the best available option, and variance-reduction techniques are used to improve efficiency.
+    </p>
+
+    <p>
+      In this app you can choose N and watch the estimate evolve. Because drawing every point can become visually dense, the display can be “thinned”:
+      the app may skip drawing some points while still counting them in the estimate. If you supply a seed, the pseudo-random generator becomes deterministic,
+      which is useful for repeating runs and comparing settings. For a more detailed overview of Monte Carlo methods and the π example, see:
+      <a href="https://en.wikipedia.org/wiki/Monte_Carlo_method" target="_blank" rel="noopener">Monte Carlo method (Wikipedia)</a>
+      and
+      <a href="https://en.wikipedia.org/wiki/Approximations_of_%CF%80#Monte_Carlo_methods" target="_blank" rel="noopener">Approximations of π: Monte Carlo methods (Wikipedia)</a>.
+    </p>
+  </section>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+
+  const targetN = document.getElementById("targetN");
+  const nNumber = document.getElementById("nNumber");
+  const nPill = document.getElementById("nPill");
+
+  const batch = document.getElementById("batch");
+  const batchPill = document.getElementById("batchPill");
+  const seedEl = document.getElementById("seed");
+  const thinEl = document.getElementById("thin");
+  const liveEl = document.getElementById("live");
+
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const resetBtn = document.getElementById("resetBtn");
+
+  const piEstEl = document.getElementById("piEst");
+  const absErrEl = document.getElementById("absErr");
+  const countsEl = document.getElementById("counts");
+  const sigmaEl = document.getElementById("sigma");
+
+  const PI = Math.PI;
+
+  let running = false;
+  let total = 0;
+  let inside = 0;
+
+  // Deterministic PRNG (Mulberry32) if seeded; otherwise Math.random
+  let useSeed = false;
+  let rngState = 0;
+
+  function clampInt(x, lo, hi){
+    x = Math.round(Number(x));
+    if (!Number.isFinite(x)) return lo;
+    return Math.max(lo, Math.min(hi, x));
+  }
+
+  function setSeedFromString(s){
+    // Simple string hash -> 32-bit
+    let h = 2166136261 >>> 0;
+    for (let i=0;i<s.length;i++){
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    rngState = h >>> 0;
+  }
+
+  function mulberry32(){
+    // returns in [0,1)
+    let t = rngState += 0x6D2B79F5;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    const out = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    rngState = rngState >>> 0;
+    return out;
+  }
+
+  function rand(){
+    return useSeed ? mulberry32() : Math.random();
+  }
+
+  function fmt(x, digits=10){
+    if (!Number.isFinite(x)) return "NaN";
+    const s = x.toFixed(digits);
+    return s.replace(/(\.\d*?[1-9])0+$/,'$1').replace(/\.0+$/,".0");
+  }
+
+  function drawFrame(){
+    // Grid
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim() || '#29304a';
+    ctx.lineWidth = 1;
+    const step = 60;
+    for (let x=0;x<=cv.width;x+=step){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,cv.height); ctx.stroke(); }
+    for (let y=0;y<=cv.height;y+=step){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(cv.width,y); ctx.stroke(); }
+    ctx.restore();
+
+    // Square and circle in world coords: [-1,1]x[-1,1]
+    const pad = 70;
+    const size = Math.min(cv.width, cv.height) - 2*pad;
+    const cx0 = (cv.width - size)/2;
+    const cy0 = (cv.height - size)/2;
+
+    function toX(x){ return cx0 + (x+1)*(size/2); }
+    function toY(y){ return cy0 + (1-y)*(size/2); } // invert y
+
+    // Square boundary
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx0, cy0, size, size);
+
+    // Circle boundary
+    const Rpx = size/2;
+    ctx.beginPath();
+    ctx.arc(cx0+Rpx, cy0+Rpx, Rpx, 0, 2*Math.PI);
+    ctx.stroke();
+    ctx.restore();
+
+    // Title text
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,0.88)";
+    ctx.font = "14px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif";
+    ctx.fillText("Square: [-1,1]×[-1,1]    Circle: x²+y²=1", cx0, cy0 - 18);
+    ctx.restore();
+
+    // We redraw dots from a buffer (imageData would be faster, but keep simple and robust)
+    // Instead of storing all points, we keep an offscreen canvas for points.
+  }
+
+  const ptsCanvas = document.createElement("canvas");
+  ptsCanvas.width = cv.width;
+  ptsCanvas.height = cv.height;
+  const ptsCtx = ptsCanvas.getContext("2d");
+
+  function reset(){
+    running = false;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+
+    total = 0;
+    inside = 0;
+
+    // seed
+    const seedStr = seedEl.value.trim();
+    useSeed = seedStr.length > 0;
+    if (useSeed) setSeedFromString(seedStr);
+
+    // clear point layer
+    ptsCtx.clearRect(0,0,ptsCanvas.width,ptsCanvas.height);
+
+    updateMetrics();
+    redraw();
+  }
+
+  function redraw(){
+    drawFrame();
+    // draw points layer on top
+    ctx.drawImage(ptsCanvas, 0, 0);
+  }
+
+  function updateMetrics(){
+    const est = total > 0 ? 4 * (inside / total) : NaN;
+    const err = total > 0 ? Math.abs(PI - est) : NaN;
+
+    piEstEl.textContent = total > 0 ? fmt(est, 12) : "–";
+    absErrEl.textContent = total > 0 ? fmt(err, 12) : "–";
+
+    countsEl.textContent = `${total.toLocaleString("en-GB")}, ${inside.toLocaleString("en-GB")}`;
+
+    // Rough sigma using p ≈ inside/total if available else π/4
+    if (total > 0){
+      const p = inside / total;
+      const sigma = 4 * Math.sqrt(Math.max(0, p*(1-p)/total));
+      sigmaEl.textContent = fmt(sigma, 12);
+    } else {
+      sigmaEl.textContent = "–";
+    }
+  }
+
+  function step(){
+    if (!running) return;
+
+    const Ntarget = clampInt(nNumber.value, 100, 5000000);
+    const b = clampInt(batch.value, 10, 20000);
+    const thin = thinEl.checked;
+    const live = liveEl.checked;
+
+    const pad = 70;
+    const size = Math.min(cv.width, cv.height) - 2*pad;
+    const cx0 = (cv.width - size)/2;
+    const cy0 = (cv.height - size)/2;
+    const Rpx = size/2;
+
+    function toX(x){ return cx0 + (x+1)*Rpx; }
+    function toY(y){ return cy0 + (1-y)*Rpx; }
+
+    // Thin drawing: only draw ~1 in k points so canvas remains readable
+    // Keep k dynamic with N to avoid heavy overdraw
+    const k = thin ? Math.max(1, Math.floor(Ntarget / 20000)) : 1;
+
+    for (let i=0;i<b && total < Ntarget;i++){
+      const x = 2*rand() - 1;
+      const y = 2*rand() - 1;
+
+      const inCircle = (x*x + y*y) <= 1.0;
+      total += 1;
+      if (inCircle) inside += 1;
+
+      if ((total % k) === 0){
+        ptsCtx.fillStyle = inCircle ? "rgba(124,242,176,0.95)" : "rgba(255,122,154,0.95)";
+        ptsCtx.fillRect(toX(x), toY(y), 1.4, 1.4);
+      }
+    }
+
+    updateMetrics();
+    if (live) redraw();
+
+    if (total >= Ntarget){
+      running = false;
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      redraw(); // final redraw
+      return;
+    }
+    requestAnimationFrame(step);
+  }
+
+  function start(){
+    const N = clampInt(nNumber.value, 100, 5000000);
+    nNumber.value = String(N);
+    targetN.value = String(Math.min(500000, N));
+    nPill.textContent = `N = ${N.toLocaleString("en-GB")}`;
+
+    const b = clampInt(batch.value, 10, 20000);
+    batchPill.textContent = `batch = ${b.toLocaleString("en-GB")}`;
+
+    if (!running){
+      running = true;
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+
+      // If this is the very start, ensure seed is captured
+      if (total === 0){
+        const seedStr = seedEl.value.trim();
+        useSeed = seedStr.length > 0;
+        if (useSeed) setSeedFromString(seedStr);
+      }
+      requestAnimationFrame(step);
+    }
+  }
+
+  function stop(){
+    running = false;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+  }
+
+  // UI wiring
+  targetN.addEventListener("input", () => {
+    const N = clampInt(targetN.value, 100, 500000);
+    nNumber.value = String(N);
+    nPill.textContent = `N = ${N.toLocaleString("en-GB")}`;
+  });
+
+  nNumber.addEventListener("change", () => {
+    const N = clampInt(nNumber.value, 100, 5000000);
+    nNumber.value = String(N);
+    nPill.textContent = `N = ${N.toLocaleString("en-GB")}`;
+    targetN.value = String(Math.min(500000, N));
+  });
+
+  batch.addEventListener("input", () => {
+    const b = clampInt(batch.value, 10, 20000);
+    batchPill.textContent = `batch = ${b.toLocaleString("en-GB")}`;
+  });
+
+  startBtn.addEventListener("click", start);
+  stopBtn.addEventListener("click", stop);
+  resetBtn.addEventListener("click", reset);
+
+  // Initial paint
+  nPill.textContent = `N = ${clampInt(nNumber.value,100,5000000).toLocaleString("en-GB")}`;
+  batchPill.textContent = `batch = ${clampInt(batch.value,10,20000).toLocaleString("en-GB")}`;
+  drawFrame();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Slot-die coating stability (Newtonian) – Ca–G map</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --card:#121823; --muted:#93a4b8; --text:#e8eef7; --accent:#7dd3fc;
+      --warn:#fbbf24; --bad:#fb7185; --good:#34d399;
+      --border:#233044;
+    }
+    body{margin:0; font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background:linear-gradient(180deg,#070a0f 0%, #0b0f14 100%); color:var(--text);}
+    header{padding:24px 18px 8px; max-width:1100px; margin:0 auto;}
+    h1{font-size:20px; margin:0 0 6px; font-weight:650;}
+    p{margin:8px 0; color:var(--muted); line-height:1.45;}
+    .wrap{max-width:1100px; margin:0 auto; padding:10px 18px 28px;}
+    .grid{display:grid; grid-template-columns: 1.1fr 0.9fr; gap:14px;}
+    @media (max-width: 980px){ .grid{grid-template-columns:1fr;} }
+    .card{background:rgba(18,24,35,0.92); border:1px solid var(--border); border-radius:14px; padding:14px;}
+    .card h2{font-size:14px; margin:0 0 10px; font-weight:650; color:#d7e3f5;}
+    .row{display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;}
+    @media (max-width: 640px){ .row{grid-template-columns:1fr;} }
+    label{display:block; font-size:12px; color:var(--muted); margin:0 0 6px;}
+    input, select{
+      width:100%; padding:10px 10px; border-radius:10px; border:1px solid var(--border);
+      background:#0d1420; color:var(--text); outline:none;
+    }
+    input:focus, select:focus{border-color:#2b4768; box-shadow:0 0 0 2px rgba(125,211,252,0.15);}
+    .hint{font-size:12px; color:var(--muted); margin-top:6px;}
+    .btnbar{display:flex; gap:10px; flex-wrap:wrap; margin-top:6px;}
+    button{
+      border:1px solid var(--border); background:#0d1420; color:var(--text);
+      padding:10px 12px; border-radius:10px; cursor:pointer; font-weight:600;
+    }
+    button:hover{border-color:#2b4768;}
+    .kpi{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+    .kpi .box{border:1px solid var(--border); border-radius:12px; padding:10px; background:#0d1420;}
+    .kpi .v{font-size:18px; font-weight:700; margin-top:4px;}
+    .pill{display:inline-block; padding:4px 10px; border-radius:999px; font-weight:700; font-size:12px;}
+    .good{background:rgba(52,211,153,0.14); color:var(--good); border:1px solid rgba(52,211,153,0.25);}
+    .bad{background:rgba(251,113,133,0.14); color:var(--bad); border:1px solid rgba(251,113,133,0.25);}
+    .warn{background:rgba(251,191,36,0.12); color:var(--warn); border:1px solid rgba(251,191,36,0.22);}
+    canvas{width:100%; height:auto; background:#0d1420; border:1px solid var(--border); border-radius:14px;}
+    details{border:1px solid var(--border); border-radius:12px; padding:10px; background:#0d1420;}
+    summary{cursor:pointer; font-weight:650;}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+    .small{font-size:12px; color:var(--muted); line-height:1.45;}
+    .hr{height:1px; background:var(--border); margin:12px 0;}
+    .note{font-size:12px; color:var(--muted);}
+    a{color:var(--accent); text-decoration:none;}
+    a:hover{text-decoration:underline;}
+  </style>
+</head>
+<body>
+<header>
+  <h1>Slot-die coating stability (Newtonian): Ca–G map, required flow, and defect flagging</h1>
+  <p>All internal calculations are in SI units. Enter ink properties and target wet thickness. Choose geometry and speed. The tool computes
+    <span class="mono">Ca</span>, <span class="mono">G</span>, required flow per width <span class="mono">q</span>, volumetric flow <span class="mono">Q</span>, then flags likely instability modes.</p>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+    <div class="card">
+      <h2>Inputs (SI-friendly entry)</h2>
+
+      <div class="row">
+        <div>
+          <label for="mu">Viscosity μ</label>
+          <input id="mu" type="number" step="any" value="50">
+          <div class="hint">Enter in <b>mPa·s</b> (internally converted to Pa·s).</div>
+        </div>
+        <div>
+          <label for="sigma">Surface tension σ</label>
+          <input id="sigma" type="number" step="any" value="35">
+          <div class="hint">Enter in <b>mN/m</b> (internally converted to N/m).</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="t">Target wet film thickness t</label>
+          <input id="t" type="number" step="any" value="30">
+          <div class="hint">Enter in <b>µm</b> (internally converted to m).</div>
+        </div>
+        <div>
+          <label for="U">Web speed U</label>
+          <input id="U" type="number" step="any" value="10">
+          <div class="hint">Enter in <b>m/min</b> (internally converted to m/s).</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="H0">Coating gap H₀ (die-to-substrate)</label>
+          <input id="H0" type="number" step="any" value="150">
+          <div class="hint">Enter in <b>µm</b>.</div>
+        </div>
+        <div>
+          <label for="s">Slot opening at the mouth s</label>
+          <input id="s" type="number" step="any" value="100">
+          <div class="hint">Enter in <b>µm</b>.</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="W">Coated width W (optional for Q)</label>
+          <input id="W" type="number" step="any" value="0.30">
+          <div class="hint">Enter in <b>m</b>. Used only for total volumetric flow <span class="mono">Q=q·W</span>.</div>
+        </div>
+        <div>
+          <label for="CaAir">Air-entrainment threshold Ca<sub>air</sub> (tunable)</label>
+          <input id="CaAir" type="number" step="any" value="0.8">
+          <div class="hint">Order-unity default. Shift if you have substrate-specific data.</div>
+        
+      <div class="row">
+        <div>
+          <label for="model">Boundary model for downstream limit</label>
+          <select id="model">
+            <option value="mechanistic" selected>Mechanistic (Landau–Levich scaling: Gcrit = G0 + k·Ca^(2/3))</option>
+            <option value="schematic">Schematic (power law: Gcrit = a + b·Ca^p)</option>
+          </select>
+          <div class="hint">Mechanistic is the publication-oriented default. Schematic is kept for teaching and quick fitting.</div>
+        </div>
+        <div>
+          <label for="G0">Mechanistic intercept G0</label>
+          <input id="G0" type="number" step="any" value="1.2">
+          <div class="hint">Baseline allowable gap ratio at low Ca (dimensionless).</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="kLL">Mechanistic coefficient k (multiplies Ca^(2/3))</label>
+          <input id="kLL" type="number" step="any" value="3.0">
+          <div class="hint">Default gives a typical window shape. Calibrate with your onset-of-ribbing data if available.</div>
+        </div>
+        <div>
+          <label for="LLexp">Mechanistic exponent (fixed by theory)</label>
+          <input id="LLexp" type="number" step="any" value="0.6667" disabled>
+          <div class="hint">Landau–Levich scaling gives an exponent close to 2/3 for the viscous–capillary contribution.</div>
+        </div>
+      </div>
+</div>
+      </div>
+
+      <details>
+        <summary>Advanced: downstream boundary parameters (used only in Schematic mode)</summary>
+        <div class="small" style="margin-top:8px;">
+          Schematic mode uses a qualitative boundary <span class="mono">G<sub>crit</sub>(Ca)=a + b·Ca<sup>p</sup></span>.
+          This preserves the common structure of a stable “window” but is not a substitute for a calibrated model for a specific die and substrate.
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div>
+            <label for="a">a</label>
+            <input id="a" type="number" step="any" value="1.2">
+          </div>
+          <div>
+            <label for="b">b</label>
+            <input id="b" type="number" step="any" value="3.5">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="p">p</label>
+            <input id="p" type="number" step="any" value="0.8">
+          </div>
+          <div>
+            <label for="mapGmax">Map y-maximum (G)</label>
+            <input id="mapGmax" type="number" step="any" value="10">
+          </div>
+        </div>
+      </details>
+
+      <div class="btnbar">
+        <button id="calcBtn">Calculate</button>
+        <button id="resetBtn" title="Resets to defaults">Reset</button>
+      </div>
+
+      <div class="note" style="margin-top:10px;">
+        The most important computed groups are <span class="mono">Ca=μU/σ</span> and <span class="mono">G=H₀/t=H₀U/q</span> with <span class="mono">q=tU</span>.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Results</h2>
+
+      <div id="statusLine" style="margin-bottom:10px;"></div>
+
+      <div class="kpi">
+        <div class="box">
+          <div class="small">Capillary number</div>
+          <div class="v mono" id="CaOut">–</div>
+        </div>
+        <div class="box">
+          <div class="small">Dimensionless gap</div>
+          <div class="v mono" id="GOut">–</div>
+        </div>
+        <div class="box">
+          <div class="small">Flow per unit width</div>
+          <div class="v mono" id="qOut">–</div>
+          <div class="small">SI: m²/s</div>
+        </div>
+        <div class="box">
+          <div class="small">Total volumetric flow</div>
+          <div class="v mono" id="QOut">–</div>
+          <div class="small">SI: m³/s</div>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="small">
+        Additional checks (not hard boundaries):
+        <ul>
+          <li><span class="mono">t/s</span> compares deposited thickness to slot opening (feeding robustness indicator).</li>
+          <li><span class="mono">U_slot=q/s</span> is average slot exit velocity (useful for internal hydraulic sensitivity).</li>
+        </ul>
+      </div>
+
+      <div class="kpi" style="margin-top:10px;">
+        <div class="box">
+          <div class="small">Thickness-to-slot ratio</div>
+          <div class="v mono" id="tsOut">–</div>
+        </div>
+        <div class="box">
+          <div class="small">Slot exit velocity (average)</div>
+          <div class="v mono" id="UslotOut">–</div>
+          <div class="small">SI: m/s</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <h2>Stability map (Ca–G) with your operating point</h2>
+    <canvas id="map" width="1050" height="560"></canvas>
+    <p class="small">
+      Green region: steady bead likely. Above the curve: downstream meniscus instability (ribbing/striping/breaklines). The curve is mechanistic by default (Landau–Levich scaling).
+      Right of the dashed line: upstream wetting failure / air entrainment risk. This map is schematic and intended as a
+      design guide; calibrate boundaries with your own trials when possible.
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <h2>Key equations and interpretation (Newtonian, SI)</h2>
+    <div class="small">
+      <p><b>Premetered thickness</b></p>
+      <p class="mono">t = q/U</p>
+      <p>where <span class="mono">q</span> is volumetric flow per unit width (m²/s), <span class="mono">U</span> is web speed (m/s), and <span class="mono">t</span> is wet film thickness (m).</p>
+
+      <p><b>Dimensionless gap</b></p>
+      <p class="mono">G = H₀/t = H₀U/q</p>
+      <p><span class="mono">H₀</span> is the die-to-substrate coating gap (m). Larger <span class="mono">G</span> means the bead must bridge a relatively larger gap compared with the deposited film, increasing sensitivity to downstream meniscus instabilities.</p>
+
+      <p><b>Capillary number</b></p>
+      <p class="mono">Ca = μU/σ</p>
+      <p><span class="mono">μ</span> is viscosity (Pa·s) and <span class="mono">σ</span> is surface tension (N/m). Larger <span class="mono">Ca</span> indicates viscous forcing dominates capillarity, often increasing air-entrainment risk at the upstream meniscus.</p>
+
+      <p><b>Meniscus capillary pressure (Laplace)</b></p>
+      <p class="mono">Δp_cap = σ(1/R₁ + 1/R₂)</p>
+      <p>This sets the pressure jump across each meniscus. Slot-die operability hinges on whether capillary pressure plus any applied pressure difference can balance viscous losses in the bead.</p>
+
+      <p><b>Slot mouth kinematics (geometry effect)</b></p>
+      <p class="mono">U_slot ≈ q/s,   γ̇_exit ~ q/s²</p>
+      <p><span class="mono">s</span> is the slot opening at the mouth (m). For Newtonian fluids the viscosity is constant, but smaller <span class="mono">s</span> increases hydraulic sensitivity and can aggravate cross-web non-uniformity (striping) even if the bead is nominally within the Ca–G window.</p>
+
+      <p class="note">Defect mapping used here: (i) <span class="mono">Ca ≥ Ca_air</span> → air entrainment risk, (ii) <span class="mono">G ≥ Gcrit(Ca)</span> → downstream meniscus instability (ribbing/striping/breaklines). By default <span class="mono">Gcrit</span> uses Landau–Levich scaling (<span class="mono">Ca^(2/3)</span>) as a mechanistic proxy; a flexible schematic form is also available for teaching or curve fitting.</p>
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:12px;">If you have a measured critical line for your specific die/substrate (from trials), you can fit the advanced parameters so the map matches your system.</p>
+</div>
+
+<script>
+(function(){
+  const $ = (id)=>document.getElementById(id);
+
+  function toSI(){
+    const mu = parseFloat($("mu").value) * 1e-3;       // mPa·s -> Pa·s
+    const sigma = parseFloat($("sigma").value) * 1e-3; // mN/m -> N/m
+    const t = parseFloat($("t").value) * 1e-6;         // µm -> m
+    const U = parseFloat($("U").value) / 60.0;         // m/min -> m/s
+    const H0 = parseFloat($("H0").value) * 1e-6;       // µm -> m
+    const s = parseFloat($("s").value) * 1e-6;         // µm -> m
+    const W = parseFloat($("W").value);                // m
+    const CaAir = parseFloat($("CaAir").value);
+    const model = $("model").value;
+    const G0 = parseFloat($("G0").value);
+    const kLL = parseFloat($("kLL").value);
+    const a = parseFloat($("a").value);
+    const b = parseFloat($("b").value);
+    const p = parseFloat($("p").value);
+    const mapGmax = parseFloat($("mapGmax").value);
+    return {mu, sigma, t, U, H0, s, W, CaAir, model, G0, kLL, a, b, p, mapGmax};
+  }
+
+  function fmt(x, sig=4){
+    if(!isFinite(x)) return "–";
+    const abs = Math.abs(x);
+    if(abs === 0) return "0";
+    if(abs < 1e-3 || abs >= 1e3) return x.toExponential(sig-1);
+    return x.toPrecision(sig);
+  }
+
+  function Gcrit(Ca, params){
+    // Publication-oriented default: Landau–Levich scaling for the downstream viscous–capillary contribution.
+    // Mechanistic mode:     Gcrit = G0 + k * Ca^(2/3)
+    // Schematic mode:       Gcrit = a  + b * Ca^p  (kept for teaching and quick fitting)
+    const C = Math.max(Ca, 0);
+    if(params.model === "mechanistic"){
+      const exp = 2.0/3.0;
+      return params.G0 + params.kLL * Math.pow(C, exp);
+    }
+    // schematic
+    return params.a + params.b * Math.pow(C, params.p);
+  }
+
+  function classify(Ca, G, CaAir, Gc){
+    if(Ca >= CaAir) return {state:"Unstable", mode:"Air entrainment / upstream wetting failure", cls:"bad"};
+    if(G >= Gc)     return {state:"Unstable", mode:"Downstream meniscus instability (ribbing / striping / breaklines)", cls:"bad"};
+    return {state:"Likely stable", mode:"Steady bead (defect-free likely)", cls:"good"};
+  }
+
+  function extraNotes(t, s, Uslot){
+    const notes = [];
+    const ratio = t/s;
+    if(ratio > 1.0){
+      notes.push({txt:`Feeding robustness warning: t/s = ${fmt(ratio,3)} > 1 (slot opening smaller than target film).`, cls:"warn"});
+    } else if(ratio > 0.7){
+      notes.push({txt:`Feeding sensitivity: t/s = ${fmt(ratio,3)} is close to 1.`, cls:"warn"});
+    } else {
+      notes.push({txt:`Feeding indicator: t/s = ${fmt(ratio,3)} (generally favourable when well below 1).`, cls:"good"});
+    }
+    if(Uslot > 1.0){
+      notes.push({txt:`High slot exit velocity U_slot ≈ ${fmt(Uslot,3)} m/s may increase sensitivity to die imperfections (striping risk).`, cls:"warn"});
+    }
+    return notes;
+  }
+
+  function drawMap(params, point){
+    const c = $("map");
+    const ctx = c.getContext("2d");
+    const w = c.width, h = c.height;
+
+    ctx.clearRect(0,0,w,h);
+
+    const CaMin = 0, CaMax = 2.0;
+    const GMin = 0, GMax = Math.max(2, params.mapGmax);
+
+    const px = (Ca)=> 70 + (Ca - CaMin) / (CaMax - CaMin) * (w - 110);
+    const py = (G)=>  (h - 60) - (G - GMin) / (GMax - GMin) * (h - 110);
+
+    ctx.fillStyle = "#0d1420";
+    ctx.fillRect(0,0,w,h);
+
+    ctx.strokeStyle = "#233044";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(50,30,w-80,h-80);
+
+    ctx.fillStyle = "#e8eef7";
+    ctx.font = "14px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillText("Capillary number  Ca = μU/σ", 70, h-20);
+
+    ctx.save();
+    ctx.translate(18, h/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText("Dimensionless gap  G = H₀/t = H₀U/q", 0, 0);
+    ctx.restore();
+
+    ctx.fillStyle = "#93a4b8";
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+
+    for(let i=0;i<=8;i++){
+      const Ca = CaMin + (CaMax-CaMin)*i/8;
+      const x = px(Ca);
+      ctx.strokeStyle = "#233044";
+      ctx.beginPath(); ctx.moveTo(x, h-50); ctx.lineTo(x, h-45); ctx.stroke();
+      ctx.fillText(Ca.toFixed(2), x-12, h-30);
+    }
+    for(let j=0;j<=10;j++){
+      const G = GMin + (GMax-GMin)*j/10;
+      const y = py(G);
+      ctx.strokeStyle = "#233044";
+      ctx.beginPath(); ctx.moveTo(50, y); ctx.lineTo(55, y); ctx.stroke();
+      ctx.fillText(G.toFixed(1), 22, y+4);
+    }
+
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = "#34d399";
+    const steps = 280;
+    for(let i=0;i<steps;i++){
+      const Ca = CaMin + (CaMax-CaMin)*i/(steps-1);
+      const Gc = Gcrit(Ca, params);
+      const xs = px(Ca);
+      const ys = py(Math.min(Gc, GMax));
+      if(Ca >= params.CaAir) continue;
+      ctx.fillRect(xs, ys, (w-110)/steps + 1, (h-80)- (ys-30));
+    }
+    ctx.globalAlpha = 1.0;
+
+    ctx.strokeStyle = "#7dd3fc";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for(let i=0;i<steps;i++){
+      const Ca = CaMin + (CaMax-CaMin)*i/(steps-1);
+      const Gc = Gcrit(Ca, params);
+      const x = px(Ca);
+      const y = py(Math.min(Gc, GMax));
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = "#93a4b8";
+    ctx.setLineDash([7,7]);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const xAir = px(params.CaAir);
+    ctx.moveTo(xAir, 30);
+    ctx.lineTo(xAir, h-50);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = "#e8eef7";
+    ctx.font = "13px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillText("Downstream limit  Gcrit(Ca) (model-dependent)", 80, 55);
+    ctx.fillStyle = "#93a4b8";
+    ctx.fillText("Air-entrainment limit  Ca_air", xAir+8, 78);
+
+    ctx.fillStyle = "#e8eef7";
+    ctx.fillText("Stable bead", 90, py(2.3));
+    ctx.fillStyle = "#93a4b8";
+    ctx.fillText("Downstream meniscus instability", 90, py(Math.min(GMax-2,7.0)));
+    ctx.fillText("(ribbing / striping / breaklines)", 90, py(Math.min(GMax-2,6.4)));
+    ctx.fillText("Upstream wetting failure", Math.min(w-320, xAir+18), py(Math.min(GMax-2,6.6)));
+    ctx.fillText("(air entrainment)", Math.min(w-320, xAir+18), py(Math.min(GMax-2,6.0)));
+
+    if(point){
+      const xp = px(Math.max(CaMin, Math.min(CaMax, point.Ca)));
+      const yp = py(Math.max(GMin, Math.min(GMax, point.G)));
+      ctx.fillStyle = "#fb7185";
+      ctx.beginPath(); ctx.arc(xp, yp, 7, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "#0b0f14";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(xp, yp, 7, 0, Math.PI*2); ctx.stroke();
+
+      ctx.fillStyle = "#e8eef7";
+      ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
+      const label = `Ca=${fmt(point.Ca,3)}, G=${fmt(point.G,3)}`;
+      ctx.fillText(label, xp+10, yp-10);
+    }
+  }
+
+  function calculate(){
+    const p = toSI();
+
+    const bad = [];
+    if(!(p.mu>0)) bad.push("μ must be > 0");
+    if(!(p.sigma>0)) bad.push("σ must be > 0");
+    if(!(p.t>0)) bad.push("t must be > 0");
+    if(!(p.U>0)) bad.push("U must be > 0");
+    if(!(p.H0>0)) bad.push("H₀ must be > 0");
+    if(!(p.s>0)) bad.push("s must be > 0");
+    if(!(p.W>0)) bad.push("W must be > 0");
+
+    if(bad.length){
+      $("statusLine").innerHTML = `<span class="pill bad">Input error</span> <span class="small">${bad.join("; ")}</span>`;
+      return;
+    }
+
+    const q = p.t * p.U;      // m^2/s
+    const Q = q * p.W;        // m^3/s
+    const Ca = p.mu * p.U / p.sigma;
+    const G  = p.H0 / p.t;
+    const Gc = Gcrit(Ca, p);
+
+    const Uslot = q / p.s;
+    const ts = p.t / p.s;
+
+    $("CaOut").textContent = fmt(Ca,4);
+    $("GOut").textContent  = fmt(G,4);
+    $("qOut").textContent  = fmt(q,4);
+    $("QOut").textContent  = fmt(Q,4);
+    $("UslotOut").textContent = fmt(Uslot,4);
+    $("tsOut").textContent = fmt(ts,4);
+
+    const cls = classify(Ca, G, p.CaAir, Gc);
+    const notes = extraNotes(p.t, p.s, Uslot);
+
+    let html = `<div><span class="pill ${cls.cls}">${cls.state}</span> <b style="margin-left:8px;">${cls.mode}</b></div>`;
+    html += `<div class="small" style="margin-top:8px;">
+      Computed boundaries: <span class="mono">Ca_air=${fmt(p.CaAir,3)}</span>, <span class="mono">Gcrit(Ca)=${fmt(Gc,4)}</span> (${p.model}).
+      Your point: <span class="mono">Ca=${fmt(Ca,4)}</span>, <span class="mono">G=${fmt(G,4)}</span>.
+    </div>`;
+
+    html += `<div style="margin-top:10px;">`;
+    for(const n of notes){
+      html += `<div class="small"><span class="pill ${n.cls}" style="margin-right:8px;">Note</span>${n.txt}</div>`;
+    }
+    html += `</div>`;
+
+    $("statusLine").innerHTML = html;
+
+    drawMap(p, {Ca, G});
+  }
+
+  function reset(){
+    $("mu").value = 50;
+    $("sigma").value = 35;
+    $("t").value = 30;
+    $("U").value = 10;
+    $("H0").value = 150;
+    $("s").value = 100;
+    $("W").value = 0.30;
+    $("CaAir").value = 0.8;
+    $("model").value = "mechanistic";
+    $("G0").value = 1.2;
+    $("kLL").value = 3.0;
+    $("a").value = 1.2;
+    $("b").value = 3.5;
+    $("p").value = 0.8;
+    $("mapGmax").value = 10;
+    calculate();
+  }
+
+  $("calcBtn").addEventListener("click", calculate);
+  $("resetBtn").addEventListener("click", reset);
+
+  calculate();
+})();
+</script>
+
+<!--
+================================================================================
+DETAILED NOTES FOR READERS / DEVELOPERS (PLEASE KEEP)
+
+Purpose
+  This single-file HTML tool provides a compact “engineering calculator” for
+  Newtonian slot-die coating stability in the standard Ca–G coordinates used
+  throughout coating literature.
+
+Key inputs (SI internally)
+  μ   : viscosity (Pa·s)
+  σ   : surface tension (N/m)
+  t   : target wet film thickness (m)
+  U   : web speed (m/s)
+  H0  : die-to-substrate coating gap (m)
+  s   : slot opening at the mouth (m)
+  W   : coated width (m) used only to compute total volumetric flow Q
+
+Core metering (premetered coating)
+  q = t * U          [m^2/s]  flow per unit width required to obtain thickness t
+  Q = q * W          [m^3/s]  total pump flow (for a uniform width W)
+
+Non-dimensional groups (dominant in Newtonian bead stability)
+  Ca = μU/σ          capillary number, viscous forcing relative to capillarity
+  G  = H0/t          dimensionless gap ratio, how “stretched” the bead is
+
+Defect interpretation used by this tool
+  (A) Upstream limit: air entrainment / dynamic wetting failure
+      Flagged when Ca >= Ca_air.
+      Ca_air is user-tunable because real thresholds depend strongly on substrate
+      wetting, roughness, meniscus geometry, and gas effects.
+
+  (B) Downstream limit: meniscus instability (ribbing/striping/breaklines/rivulets)
+      Flagged when G >= Gcrit(Ca).
+      Two model options are provided:
+
+      1) Mechanistic (default, publication-oriented)
+           Gcrit(Ca) = G0 + k * Ca^(2/3)
+
+         Rationale:
+           Ca^(2/3) is characteristic of Landau–Levich–Derjaguin viscous–capillary
+           scaling at a moving meniscus. G0 and k encode geometry and wetting and
+           should be calibrated if predictive accuracy is needed.
+
+      2) Schematic (teaching / quick fitting)
+           Gcrit(Ca) = a + b * Ca^p
+
+Important limitations (explicitly not modelled)
+  - Vacuum/back-pressure and explicit meniscus location
+  - Dynamic contact angle relations
+  - Non-Newtonian rheology and drying-driven effects
+  - Cross-web die manifold pressure distribution
+================================================================================
+-->
+
+</body>
+</html>

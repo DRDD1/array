@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>π from Taylor series: Gregory–Leibniz vs Machin</title>
+  <style>
+    :root{
+      --bg:#0b0d12;
+      --panel:#121625;
+      --panel2:#0f1320;
+      --text:#e9ecf5;
+      --muted:#b6bdd6;
+      --accent:#8fb3ff;
+      --a:#7cf2b0;     /* GL */
+      --b:#8fb3ff;     /* Machin */
+      --grid:#29304a;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1100px 600px at 10% 10%, #121a33 0%, var(--bg) 60%);
+      color:var(--text);
+      line-height:1.35;
+    }
+    header{
+      padding:18px 18px 0 18px;
+      max-width:1200px;
+      margin:0 auto;
+    }
+    h1{font-size:20px;margin:0 0 6px 0;font-weight:700}
+    .sub{color:var(--muted);font-size:13px;margin:0 0 14px 0}
+    .wrap{
+      max-width:1200px;
+      margin:0 auto;
+      padding:0 18px 18px 18px;
+      display:grid;
+      grid-template-columns: 420px 1fr;
+      gap:14px;
+    }
+    @media (max-width: 1050px){ .wrap{grid-template-columns:1fr} }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border:1px solid rgba(255,255,255,0.08);
+      border-radius:16px;
+      padding:14px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+    }
+    .card h2{font-size:14px;margin:0 0 10px 0;color:var(--muted);font-weight:650;letter-spacing:0.2px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    label{font-size:13px;color:var(--muted)}
+    input[type="range"]{width:100%}
+    input[type="number"]{
+      width: 140px;
+      padding:8px 10px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.12);
+      background: var(--panel2);
+      color: var(--text);
+      outline:none;
+    }
+    button{
+      padding:9px 11px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,0.12);
+      background: rgba(143,179,255,0.12);
+      color: var(--text);
+      cursor:pointer;
+      font-weight:650;
+    }
+    button:hover{background: rgba(143,179,255,0.18)}
+    .pill{
+      display:inline-block;
+      padding:5px 9px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.04);
+      font-size:12px;
+      color:var(--muted);
+    }
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      margin-top:10px;
+    }
+    .metric{
+      padding:10px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,0.08);
+      background: rgba(0,0,0,0.14);
+    }
+    .metric .k{font-size:12px;color:var(--muted);margin-bottom:6px}
+    .metric .v{font-size:16px;font-weight:750}
+    .metric .s{font-size:12px;color:var(--muted);margin-top:6px}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .hr{height:1px;background:rgba(255,255,255,0.10);margin:12px 0}
+    .charts{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:12px;
+    }
+    canvas{
+      width:100%;
+      height:auto;
+      display:block;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.12);
+    }
+    .note{font-size:12px;color:var(--muted);margin-top:10px}
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .footer{
+      max-width:1200px;
+      margin:0 auto;
+      padding:0 18px 28px 18px;
+    }
+    .history{
+      font-size:14px;
+      color:var(--text);
+    }
+    .history p{opacity:0.95}
+    .math{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      padding:10px 12px;
+      border-radius:12px;
+      background: rgba(0,0,0,0.18);
+      border:1px solid rgba(255,255,255,0.10);
+      overflow:auto;
+    }
+    .legend{
+      display:flex;
+      gap:14px;
+      flex-wrap:wrap;
+      align-items:center;
+      font-size:12px;
+      color:var(--muted);
+      margin-top:8px;
+    }
+    .key{display:flex;gap:8px;align-items:center}
+    .swatch{width:16px;height:6px;border-radius:999px;background:#fff;display:inline-block}
+    .swatch.a{background:rgba(124,242,176,0.95)}
+    .swatch.b{background:rgba(143,179,255,0.95)}
+    .swatch.p{background:rgba(255,255,255,0.85)}
+  </style>
+</head>
+<body>
+<header>
+  <h1>π from Taylor series: Gregory–Leibniz vs Machin style (same number of terms)</h1>
+  <p class="sub">
+    Two Taylor-series computations are compared using the same truncation order <span class="mono">N</span>.
+    Gregory–Leibniz uses <span class="mono">arctan(1)</span>, which converges very slowly.
+    Machin uses a linear combination of <span class="mono">arctan(1/5)</span> and <span class="mono">arctan(1/239)</span>, which converges much faster.
+  </p>
+</header>
+
+<div class="wrap">
+  <section class="card" aria-label="Controls and metrics">
+    <h2>Controls</h2>
+
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <label for="nRange">Number of Taylor terms (N)</label>
+      <span class="pill mono" id="nPill">N = 50</span>
+    </div>
+
+    <input id="nRange" type="range" min="1" max="4000" step="1" value="50" />
+    <div class="row" style="justify-content:space-between;margin-top:8px">
+      <div class="row">
+        <label for="nNumber">Set N directly</label>
+        <input id="nNumber" type="number" min="1" max="200000" value="50" />
+      </div>
+      <div class="row">
+        <button id="runBtn" title="Recompute and redraw charts">Update</button>
+        <button id="playBtn" title="Animate N increasing">Play</button>
+        <button id="stopBtn" title="Stop animation" disabled>Stop</button>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+
+    <h2>Current values at this N</h2>
+    <div class="grid2" aria-label="Current estimates">
+      <div class="metric">
+        <div class="k">π estimate (Gregory–Leibniz)</div>
+        <div class="v mono" id="piGL">–</div>
+        <div class="s">π ≈ 4 Σ (-1)^k /(2k+1)</div>
+      </div>
+      <div class="metric">
+        <div class="k">π estimate (Machin)</div>
+        <div class="v mono" id="piMachin">–</div>
+        <div class="s">π ≈ 16 arctan(1/5) − 4 arctan(1/239)</div>
+      </div>
+      <div class="metric">
+        <div class="k">Absolute error (Gregory–Leibniz)</div>
+        <div class="v mono" id="errGL">–</div>
+        <div class="s">Also bounded by alternating-series remainder</div>
+      </div>
+      <div class="metric">
+        <div class="k">Absolute error (Machin)</div>
+        <div class="v mono" id="errMachin">–</div>
+        <div class="s">Dominated by the larger x = 1/5 term</div>
+      </div>
+    </div>
+
+    <div class="grid2" aria-label="Diagnostics">
+      <div class="metric">
+        <div class="k">Guaranteed error bound (GL)</div>
+        <div class="v mono" id="boundGL">–</div>
+        <div class="s">|π − 4S_N| ≤ 4/(2N+3)</div>
+      </div>
+      <div class="metric">
+        <div class="k">Matching digits (estimate vs π)</div>
+        <div class="v mono" id="digits">–</div>
+        <div class="s">Shown for GL and Machin</div>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+
+    <h2>Computational effort (rough)</h2>
+    <div class="metric">
+      <div class="k">Work model</div>
+      <div class="v mono" id="workModel">O(N) arithmetic per method</div>
+      <div class="s">
+        Each term uses one division and a handful of adds/multiplies. Machin needs two arctan series, so about twice the per-term arithmetic,
+        but converges dramatically faster.
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="metric">
+        <div class="k">Approx operations (GL)</div>
+        <div class="v mono" id="opsGL">–</div>
+        <div class="s">Very approximate counts</div>
+      </div>
+      <div class="metric">
+        <div class="k">Approx operations (Machin)</div>
+        <div class="v mono" id="opsMachin">–</div>
+        <div class="s">Two arctan series combined</div>
+      </div>
+    </div>
+
+    <p class="note">
+      Note: this app uses stable recurrences to avoid recomputing powers each term (important when N is large).
+      Results are limited by JavaScript double precision, not by the mathematics.
+    </p>
+  </section>
+
+  <section class="card" aria-label="Charts">
+    <h2>Visual comparison</h2>
+    <div class="charts">
+      <div>
+        <canvas id="chart1" width="900" height="360" aria-label="Estimate vs N"></canvas>
+        <div class="legend">
+          <span class="key"><span class="swatch p"></span>True π</span>
+          <span class="key"><span class="swatch a"></span>Gregory–Leibniz</span>
+          <span class="key"><span class="swatch b"></span>Machin</span>
+        </div>
+      </div>
+      <div>
+        <canvas id="chart2" width="900" height="360" aria-label="Error vs N (log scale)"></canvas>
+        <div class="legend">
+          <span class="key"><span class="swatch a"></span>|error| Gregory–Leibniz</span>
+          <span class="key"><span class="swatch b"></span>|error| Machin</span>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      Chart 1 shows the estimates approaching π. Chart 2 shows absolute error on a log scale (smaller is better).
+      Use “Play” to watch convergence as N increases.
+    </p>
+  </section>
+</div>
+
+<div class="footer">
+  <section class="card history" aria-label="Explanation and history">
+    <h2>Explanation and history (Taylor series for arctan and π)</h2>
+
+    <p>
+      One of the cleanest ways to connect π to calculus is through the inverse tangent function. For |x| ≤ 1, the Taylor series of arctan(x)
+      about x = 0 is an alternating power series:
+    </p>
+
+    <div class="math" role="math">
+      arctan(x) = x − x^3/3 + x^5/5 − x^7/7 + … = Σ_{k=0}^{∞} (−1)^k x^{2k+1}/(2k+1).
+    </div>
+
+    <p>
+      Setting x = 1 gives arctan(1) = π/4, and therefore the classical Gregory–Leibniz series:
+    </p>
+
+    <div class="math" role="math">
+      π/4 = 1 − 1/3 + 1/5 − 1/7 + … , so  π ≈ 4 Σ_{k=0}^{N} (−1)^k /(2k+1).
+    </div>
+
+    <p>
+      The series is mathematically correct but numerically inefficient. The reason is visible in the term size: the (N+1)-th term has magnitude about 1/(2N+3),
+      so the error decreases only proportionally to 1/N. This is a painfully slow route to high-accuracy π, but it is pedagogically valuable because it is easy
+      to derive and it illustrates how convergence rates matter in computation. Because the series is alternating and its terms decrease in magnitude, it also has a
+      simple rigorous remainder bound (a textbook result for alternating series):
+    </p>
+
+    <div class="math" role="math">
+      If S_N = Σ_{k=0}^{N} (−1)^k /(2k+1), then |π − 4S_N| ≤ 4/(2N+3).
+    </div>
+
+    <p>
+      This bound explains why a small number of terms yields only a few correct digits. For example, if you want an error below 10^−6 using Gregory–Leibniz,
+      you need roughly N on the order of two million terms. The point is not that the method is “bad”, but that it is not competitive when you care about efficiency.
+      To improve convergence while staying within the same Taylor-series framework, mathematicians use identities that express π as a combination of arctangent values
+      at smaller arguments. A widely used example is a Machin-style formula:
+    </p>
+
+    <div class="math" role="math">
+      π = 16 arctan(1/5) − 4 arctan(1/239).
+    </div>
+
+    <p>
+      The key advantage is that when |x| is small, the series terms shrink like x^{2k+1}. For x = 1/5, each new term is smaller by roughly a factor of 1/25 compared
+      with the previous odd power (up to the (2k+1) denominator). For x = 1/239, the shrinkage is enormous. The consequence is that the truncation error drops extremely
+      quickly with N, even though Machin requires computing two arctan series and combining them. In practice, Machin-style formulas were historically important for
+      high-precision hand computation of π before modern algorithms (such as Gauss–Legendre or the Chudnovsky formula) became standard for record-setting digits.
+    </p>
+
+    <p>
+      This app compares both approaches at the same truncation order N. That is a fair comparison of convergence: each method gets the same number of Taylor terms.
+      You will typically observe that Machin reaches many more correct digits for modest N. The computational effort panels show a crude arithmetic count: Machin roughly
+      doubles the per-term work (two series), but can reduce the required N by orders of magnitude for a target accuracy. This is an important lesson in numerical analysis:
+      reducing N is often the dominant win, even if each step is a little more expensive.
+    </p>
+
+    <p>
+      For further background, see Wikipedia pages on the underlying ideas:
+      <a href="https://en.wikipedia.org/wiki/Leibniz_formula_for_%CF%80" target="_blank" rel="noopener">Leibniz formula for π</a>,
+      <a href="https://en.wikipedia.org/wiki/Machin-like_formula" target="_blank" rel="noopener">Machin-like formula</a>,
+      and <a href="https://en.wikipedia.org/wiki/Taylor_series" target="_blank" rel="noopener">Taylor series</a>.
+    </p>
+  </section>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const PI = Math.PI;
+
+  // UI
+  const nRange = document.getElementById("nRange");
+  const nNumber = document.getElementById("nNumber");
+  const nPill = document.getElementById("nPill");
+  const runBtn = document.getElementById("runBtn");
+  const playBtn = document.getElementById("playBtn");
+  const stopBtn = document.getElementById("stopBtn");
+
+  const piGLEl = document.getElementById("piGL");
+  const piMachEl = document.getElementById("piMachin");
+  const errGLEl = document.getElementById("errGL");
+  const errMachEl = document.getElementById("errMachin");
+  const boundGLEl = document.getElementById("boundGL");
+  const digitsEl = document.getElementById("digits");
+  const opsGLEl = document.getElementById("opsGL");
+  const opsMachEl = document.getElementById("opsMachin");
+
+  const c1 = document.getElementById("chart1");
+  const c2 = document.getElementById("chart2");
+  const ctx1 = c1.getContext("2d");
+  const ctx2 = c2.getContext("2d");
+
+  let animTimer = null;
+
+  function clampInt(x, lo, hi){
+    x = Math.round(Number(x));
+    if (!Number.isFinite(x)) return lo;
+    return Math.max(lo, Math.min(hi, x));
+  }
+
+  function fmt(x, digits=14){
+    if (!Number.isFinite(x)) return "NaN";
+    const s = x.toFixed(digits);
+    return s.replace(/(\.\d*?[1-9])0+$/,'$1').replace(/\.0+$/,".0");
+  }
+
+  function digitsMatch(est){
+    const a = est.toFixed(14);
+    const b = PI.toFixed(14);
+    const da = (a.split(".")[1] || "");
+    const db = (b.split(".")[1] || "");
+    let k = 0;
+    for (let i=0;i<Math.min(da.length, db.length);i++){
+      if (da[i] !== db[i]) break;
+      k++;
+    }
+    return k;
+  }
+
+  // Compute arctan(x) with N terms using a stable recurrence
+  // arctan(x) = sum_{k=0..N-1} (-1)^k x^(2k+1)/(2k+1)
+  function arctanTaylor(x, N){
+    // term0 = x
+    let sum = 0.0;
+    let term = x; // x^(2k+1), starting at k=0
+    let sign = 1.0;
+
+    // Use recurrence: x^(2(k+1)+1) = x^(2k+1) * x^2
+    const x2 = x*x;
+
+    for (let k=0; k<N; k++){
+      const denom = 2*k + 1;
+      sum += sign * (term / denom);
+      term *= x2;
+      sign = -sign;
+    }
+    return sum;
+  }
+
+  // Gregory–Leibniz with N terms: pi ≈ 4 * sum_{k=0..N-1} (-1)^k /(2k+1)
+  function piGregoryLeibniz(N){
+    let sum = 0.0;
+    let sign = 1.0;
+    for (let k=0;k<N;k++){
+      sum += sign * (1.0 / (2*k + 1));
+      sign = -sign;
+    }
+    return 4.0 * sum;
+  }
+
+  function piMachin(N){
+    // π = 16 arctan(1/5) − 4 arctan(1/239)
+    const a = arctanTaylor(1/5, N);
+    const b = arctanTaylor(1/239, N);
+    return 16.0*a - 4.0*b;
+  }
+
+  // Chart helpers
+  function clearCanvas(ctx, w, h){
+    ctx.clearRect(0,0,w,h);
+
+    // grid
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim() || '#29304a';
+    ctx.lineWidth = 1;
+    const step = 50;
+    for (let x=0;x<=w;x+=step){
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+    }
+    for (let y=0;y<=h;y+=step){
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawAxes(ctx, w, h, pad, xLabel, yLabel){
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    ctx.lineWidth = 1.5;
+    // axes
+    ctx.beginPath();
+    ctx.moveTo(pad, pad);
+    ctx.lineTo(pad, h-pad);
+    ctx.lineTo(w-pad, h-pad);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255,255,255,0.82)";
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif";
+    ctx.fillText(yLabel, pad+6, pad+14);
+    ctx.fillText(xLabel, w-pad-90, h-pad-10);
+
+    ctx.restore();
+  }
+
+  function mapX(i, nMax, w, pad){
+    return pad + (i/(nMax-1))*(w-2*pad);
+  }
+
+  function mapYLinear(y, yMin, yMax, h, pad){
+    const t = (y - yMin) / (yMax - yMin);
+    return (h-pad) - t*(h-2*pad);
+  }
+
+  function mapYLog(y, yMin, yMax, h, pad){
+    // y must be > 0
+    const ly = Math.log10(y);
+    const t = (ly - Math.log10(yMin)) / (Math.log10(yMax) - Math.log10(yMin));
+    return (h-pad) - t*(h-2*pad);
+  }
+
+  function drawLine(ctx, xs, ys, strokeStyle, lineWidth){
+    if (xs.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = lineWidth;
+    ctx.beginPath();
+    ctx.moveTo(xs[0], ys[0]);
+    for (let i=1;i<xs.length;i++) ctx.lineTo(xs[i], ys[i]);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawHLine(ctx, y, w, pad, style){
+    ctx.save();
+    ctx.strokeStyle = style;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(pad, y);
+    ctx.lineTo(w-pad, y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawPoint(ctx, x, y, style){
+    ctx.save();
+    ctx.fillStyle = style;
+    ctx.beginPath();
+    ctx.arc(x,y,3.2,0,2*Math.PI);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function update(){
+    const N = clampInt(nNumber.value, 1, 200000);
+    nNumber.value = String(N);
+    nRange.value = String(Math.min(4000, N));
+    nPill.textContent = `N = ${N}`;
+
+    const piGL = piGregoryLeibniz(N);
+    const piM  = piMachin(N);
+    const errGL = Math.abs(PI - piGL);
+    const errM  = Math.abs(PI - piM);
+
+    piGLEl.textContent = fmt(piGL, 15);
+    piMachEl.textContent = fmt(piM, 15);
+    errGLEl.textContent = fmt(errGL, 15);
+    errMachEl.textContent = fmt(errM, 15);
+
+    const boundGL = 4.0 / (2*N + 1 + 2); // 4/(2N+3) where N terms means last denom 2N-1, next is 2N+1, careful:
+    // If N terms means k=0..N-1, next term uses denom 2N+1, bound is 4/(2N+1)
+    // We'll compute correctly below:
+    const boundGL2 = 4.0 / (2*N + 1); // |pi - 4S_{N-1}| <= 4/(2N+1)
+    boundGLEl.textContent = fmt(boundGL2, 15);
+
+    const dGL = digitsMatch(piGL);
+    const dM  = digitsMatch(piM);
+    digitsEl.textContent = `GL: ${dGL} digits, Machin: ${dM} digits`;
+
+    // Rough ops:
+    // GL per term: 1 division + 1 add + sign flip ~ 3 ops
+    // Machin per term: two series, each needs 1 division + 1 add + 1 mult + sign flip ~ 4 ops, plus one mult for power recurrence.
+    // These are intentionally rough.
+    const opsGL = Math.round(3*N + 50);
+    const opsM  = Math.round(8*N + 80);
+    opsGLEl.textContent = `~ ${opsGL.toLocaleString("en-GB")}`;
+    opsMachEl.textContent = `~ ${opsM.toLocaleString("en-GB")}`;
+
+    // Build arrays for charts from 1..Nplot
+    const Nplot = Math.min(N, 4000); // keep drawing responsive
+    const xs = new Array(Nplot);
+    const yGL = new Array(Nplot);
+    const yM  = new Array(Nplot);
+    const eGL = new Array(Nplot);
+    const eM  = new Array(Nplot);
+
+    // Efficient incremental sums for plotting
+    // GL: partial sums
+    let sumGL = 0.0, sign = 1.0;
+    for (let k=0;k<Nplot;k++){
+      sumGL += sign * (1.0/(2*k+1));
+      sign = -sign;
+      yGL[k] = 4.0*sumGL;
+    }
+
+    // Machin: compute both arctans incrementally
+    const x1 = 1/5, x2 = 1/239;
+    const x1_2 = x1*x1, x2_2 = x2*x2;
+
+    let sumA = 0.0, termA = x1, signA = 1.0;
+    let sumB = 0.0, termB = x2, signB = 1.0;
+    for (let k=0;k<Nplot;k++){
+      sumA += signA * (termA/(2*k+1));
+      termA *= x1_2;
+      signA = -signA;
+
+      sumB += signB * (termB/(2*k+1));
+      termB *= x2_2;
+      signB = -signB;
+
+      yM[k] = 16.0*sumA - 4.0*sumB;
+    }
+
+    for (let i=0;i<Nplot;i++){
+      xs[i] = i+1;
+      eGL[i] = Math.max(1e-18, Math.abs(PI - yGL[i])); // avoid log(0)
+      eM[i]  = Math.max(1e-18, Math.abs(PI - yM[i]));
+    }
+
+    drawCharts(xs, yGL, yM, eGL, eM, Nplot, N);
+    // highlight current point at N (if within plot range)
+    if (N <= Nplot){
+      // handled in drawCharts
+    }
+  }
+
+  function drawCharts(xs, yGL, yM, eGL, eM, Nplot, Ncurrent){
+    // Chart 1: estimate vs N (zoom around pi)
+    const w1 = c1.width, h1 = c1.height;
+    const w2 = c2.width, h2 = c2.height;
+    const pad = 48;
+
+    clearCanvas(ctx1, w1, h1);
+    clearCanvas(ctx2, w2, h2);
+
+    // Determine y-range for chart1: include both curves and PI with margin
+    let ymin = PI, ymax = PI;
+    for (let i=0;i<Nplot;i++){
+      ymin = Math.min(ymin, yGL[i], yM[i]);
+      ymax = Math.max(ymax, yGL[i], yM[i]);
+    }
+    const span = Math.max(1e-12, ymax - ymin);
+    ymin -= 0.10*span;
+    ymax += 0.10*span;
+
+    drawAxes(ctx1, w1, h1, pad, "N (terms)", "π estimate");
+
+    // map arrays to pixels
+    const px = new Array(Nplot);
+    const pyGL = new Array(Nplot);
+    const pyM = new Array(Nplot);
+    for (let i=0;i<Nplot;i++){
+      px[i] = mapX(i, Nplot, w1, pad);
+      pyGL[i] = mapYLinear(yGL[i], ymin, ymax, h1, pad);
+      pyM[i]  = mapYLinear(yM[i], ymin, ymax, h1, pad);
+    }
+
+    // true pi line
+    const ypi = mapYLinear(PI, ymin, ymax, h1, pad);
+    drawHLine(ctx1, ypi, w1, pad, "rgba(255,255,255,0.80)");
+
+    // lines
+    drawLine(ctx1, px, pyGL, "rgba(124,242,176,0.95)", 2.4);
+    drawLine(ctx1, px, pyM,  "rgba(143,179,255,0.95)", 2.4);
+
+    // highlight current point
+    const idx = Math.min(Nplot-1, Math.max(0, Ncurrent-1));
+    drawPoint(ctx1, px[idx], pyGL[idx], "rgba(124,242,176,0.95)");
+    drawPoint(ctx1, px[idx], pyM[idx],  "rgba(143,179,255,0.95)");
+
+    // Chart 2: error vs N (log scale)
+    drawAxes(ctx2, w2, h2, pad, "N (terms)", "|error| (log scale)");
+
+    let emin = Infinity, emax = 0;
+    for (let i=0;i<Nplot;i++){
+      emin = Math.min(emin, eGL[i], eM[i]);
+      emax = Math.max(emax, eGL[i], eM[i]);
+    }
+    emin = Math.max(1e-18, emin);
+    emax = Math.max(emin*10, emax);
+
+    const pyEGL = new Array(Nplot);
+    const pyEM = new Array(Nplot);
+    const px2 = new Array(Nplot);
+    for (let i=0;i<Nplot;i++){
+      px2[i] = mapX(i, Nplot, w2, pad);
+      pyEGL[i] = mapYLog(eGL[i], emin, emax, h2, pad);
+      pyEM[i]  = mapYLog(eM[i],  emin, emax, h2, pad);
+    }
+
+    drawLine(ctx2, px2, pyEGL, "rgba(124,242,176,0.95)", 2.4);
+    drawLine(ctx2, px2, pyEM,  "rgba(143,179,255,0.95)", 2.4);
+
+    drawPoint(ctx2, px2[idx], pyEGL[idx], "rgba(124,242,176,0.95)");
+    drawPoint(ctx2, px2[idx], pyEM[idx],  "rgba(143,179,255,0.95)");
+
+    // Add a small annotation for plot range if N is capped
+    ctx2.save();
+    ctx2.fillStyle = "rgba(255,255,255,0.75)";
+    ctx2.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif";
+    if (Ncurrent > Nplot){
+      ctx2.fillText(`Charts show 1…${Nplot} (current N=${Ncurrent})`, pad, h2 - pad + 28);
+    } else {
+      ctx2.fillText(`Charts show 1…${Nplot}`, pad, h2 - pad + 28);
+    }
+    ctx2.restore();
+  }
+
+  // Animation
+  function startAnim(){
+    if (animTimer) return;
+    stopBtn.disabled = false;
+    playBtn.disabled = true;
+    runBtn.disabled = true;
+    let N = clampInt(nNumber.value, 1, 200000);
+    const target = Math.min(200000, Math.max(N, 4000));
+    animTimer = setInterval(() => {
+      N = Math.min(200000, N + Math.max(1, Math.floor(N*0.03)));
+      nNumber.value = String(N);
+      update();
+      if (N >= target){
+        stopAnim();
+      }
+    }, 120);
+  }
+
+  function stopAnim(){
+    if (animTimer){
+      clearInterval(animTimer);
+      animTimer = null;
+    }
+    stopBtn.disabled = true;
+    playBtn.disabled = false;
+    runBtn.disabled = false;
+  }
+
+  // Wiring
+  nRange.addEventListener("input", () => {
+    const N = clampInt(nRange.value, 1, 200000);
+    nNumber.value = String(N);
+    update();
+  });
+  nNumber.addEventListener("change", update);
+  nNumber.addEventListener("keyup", (e)=>{ if (e.key === "Enter") update(); });
+  runBtn.addEventListener("click", update);
+  playBtn.addEventListener("click", startAnim);
+  stopBtn.addEventListener("click", stopAnim);
+
+  // Initial
+  update();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Web Notepad</title>
+  <style>
+    :root{
+      --bg: #0f1115;
+      --panel: #161a22;
+      --panel2: #11141b;
+      --text: #e7e9ee;
+      --muted: #aab0bf;
+      --border: #2a3142;
+      --accent: #7aa2ff;
+      --danger: #ff6b6b;
+      --ok: #6bff9a;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    *{ box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+    header{
+      display:flex;
+      gap:.5rem;
+      align-items:center;
+      padding:.75rem 1rem;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header .title{
+      font-weight: 600;
+      margin-right: .75rem;
+    }
+    .btn{
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: .45rem .7rem;
+      border-radius: .5rem;
+      cursor: pointer;
+      font-size: .95rem;
+      line-height: 1;
+      user-select: none;
+    }
+    .btn:hover{ border-color: #3a4560; }
+    .btn.primary{
+      border-color: rgba(122,162,255,.6);
+      box-shadow: 0 0 0 1px rgba(122,162,255,.2) inset;
+    }
+    .btn.danger{
+      border-color: rgba(255,107,107,.6);
+      box-shadow: 0 0 0 1px rgba(255,107,107,.2) inset;
+    }
+    .spacer{ flex: 1; }
+    .hint{
+      color: var(--muted);
+      font-size: .9rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 45vw;
+    }
+    main{
+      padding: 0;
+      display:flex;
+      min-height: 0;
+    }
+    textarea{
+      width: 100%;
+      height: 100%;
+      border: 0;
+      outline: none;
+      resize: none;
+      padding: 1rem;
+      font-family: var(--mono);
+      font-size: 14px;
+      line-height: 1.45;
+      background: #0c0e13;
+      color: var(--text);
+      tab-size: 2;
+    }
+    footer{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: .75rem;
+      padding:.5rem 1rem;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: .9rem;
+    }
+    .status-left{
+      display:flex;
+      gap: .75rem;
+      min-width: 0;
+      align-items:center;
+    }
+    .pill{
+      padding: .15rem .5rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(255,255,255,.03);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .pill.ok{ border-color: rgba(107,255,154,.35); color: rgba(107,255,154,.85); }
+    .pill.warn{ border-color: rgba(255,107,107,.35); color: rgba(255,107,107,.85); }
+    dialog{
+      border: 1px solid var(--border);
+      border-radius: .75rem;
+      padding: 0;
+      background: var(--panel);
+      color: var(--text);
+      max-width: 520px;
+      width: calc(100% - 2rem);
+    }
+    dialog::backdrop{ background: rgba(0,0,0,.65); }
+    .dlg-body{ padding: 1rem 1rem .25rem; }
+    .dlg-actions{
+      display:flex;
+      justify-content:flex-end;
+      gap:.5rem;
+      padding: .75rem 1rem 1rem;
+    }
+    .dlg-title{ font-weight: 600; margin-bottom:.35rem; }
+    .dlg-text{ color: var(--muted); margin: 0 0 .75rem 0; }
+    kbd{
+      font-family: var(--mono);
+      font-size: .9em;
+      padding: .1rem .35rem;
+      border: 1px solid var(--border);
+      border-bottom-color: #3a4560;
+      border-radius: .4rem;
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">Web Notepad</div>
+    <button class="btn" id="newBtn" title="New (Ctrl+N)">New</button>
+    <button class="btn" id="openBtn" title="Open (Ctrl+O)">Open</button>
+    <button class="btn primary" id="saveBtn" title="Save (Ctrl+S)">Save</button>
+    <button class="btn" id="saveAsBtn" title="Save As (Ctrl+Shift+S)">Save As</button>
+    <div class="spacer"></div>
+    <div class="hint" id="capHint"></div>
+  </header>
+
+  <main>
+    <textarea id="editor" spellcheck="false" placeholder="Type here..."></textarea>
+  </main>
+
+  <footer>
+    <div class="status-left">
+      <span class="pill" id="filePill">Untitled</span>
+      <span class="pill" id="modifiedPill">Saved</span>
+      <span class="pill" id="modePill"></span>
+    </div>
+    <div>
+      <span class="pill" id="posPill">Ln 1, Col 1</span>
+    </div>
+  </footer>
+
+  <dialog id="confirmDlg">
+    <div class="dlg-body">
+      <div class="dlg-title" id="confirmTitle">Unsaved changes</div>
+      <p class="dlg-text" id="confirmText">You have unsaved changes. What would you like to do?</p>
+      <p class="dlg-text">
+        Tips: <kbd>Ctrl</kbd>+<kbd>S</kbd> save, <kbd>Ctrl</kbd>+<kbd>O</kbd> open, <kbd>Ctrl</kbd>+<kbd>N</kbd> new.
+      </p>
+    </div>
+    <div class="dlg-actions">
+      <button class="btn" id="discardBtn">Discard</button>
+      <button class="btn danger" id="cancelBtn">Cancel</button>
+      <button class="btn primary" id="saveThenBtn">Save</button>
+    </div>
+  </dialog>
+
+  <input id="fileInput" type="file" accept=".txt,.md,.csv,.json,.xml,.yaml,.yml,.log,.py,.c,.cpp,.h,.java,.js,.ts,.html,.css" hidden />
+
+  <script>
+    // Web Notepad (single-file)
+    // Notes:
+    // - Browsers restrict direct folder access.
+    // - Chromium browsers (Chrome/Edge) support saving back to the same file via the File System Access API.
+    // - Other browsers fall back to "download a file" on save.
+
+    const editor = document.getElementById('editor');
+    const filePill = document.getElementById('filePill');
+    const modifiedPill = document.getElementById('modifiedPill');
+    const posPill = document.getElementById('posPill');
+    const modePill = document.getElementById('modePill');
+    const capHint = document.getElementById('capHint');
+
+    const newBtn = document.getElementById('newBtn');
+    const openBtn = document.getElementById('openBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const saveAsBtn = document.getElementById('saveAsBtn');
+    const fileInput = document.getElementById('fileInput');
+
+    const confirmDlg = document.getElementById('confirmDlg');
+    const discardBtn = document.getElementById('discardBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const saveThenBtn = document.getElementById('saveThenBtn');
+
+    let currentFileHandle = null;      // FileSystemFileHandle (Chromium)
+    let currentFileName = 'Untitled';
+    let isDirty = false;
+    let lastSavedText = '';
+
+    const supportsFSAccess = !!window.showOpenFilePicker && !!window.showSaveFilePicker;
+
+    function setCapabilityHint(){
+      if (supportsFSAccess) {
+        capHint.textContent = 'Full save supported (File System Access API).';
+        modePill.textContent = 'FS API';
+      } else {
+        capHint.textContent = 'Limited mode: save will download a file (browser restriction).';
+        modePill.textContent = 'Download save';
+      }
+    }
+
+    function setFileName(name){
+      currentFileName = name || 'Untitled';
+      filePill.textContent = currentFileName;
+      document.title = (isDirty ? '*' : '') + currentFileName + ' - Web Notepad';
+    }
+
+    function setDirty(dirty){
+      isDirty = dirty;
+      modifiedPill.textContent = dirty ? 'Modified' : 'Saved';
+      modifiedPill.classList.toggle('warn', dirty);
+      modifiedPill.classList.toggle('ok', !dirty);
+      document.title = (dirty ? '*' : '') + currentFileName + ' - Web Notepad';
+    }
+
+    function updateCaretPosition(){
+      const text = editor.value;
+      const idx = editor.selectionStart;
+      const before = text.slice(0, idx);
+      const lines = before.split('\\n');
+      const ln = lines.length;
+      const col = lines[lines.length - 1].length + 1;
+      posPill.textContent = `Ln ${ln}, Col ${col}`;
+    }
+
+    function markDirtyIfNeeded(){
+      const now = editor.value;
+      setDirty(now !== lastSavedText);
+    }
+
+    function resetStateForNewFile(){
+      currentFileHandle = null;
+      setFileName('Untitled');
+      editor.value = '';
+      lastSavedText = '';
+      setDirty(false);
+      editor.focus();
+      updateCaretPosition();
+    }
+
+    async function maybeConfirmUnsaved(nextAction){
+      if (!isDirty) return await nextAction();
+
+      return new Promise((resolve) => {
+        function cleanup(){
+          discardBtn.removeEventListener('click', onDiscard);
+          cancelBtn.removeEventListener('click', onCancel);
+          saveThenBtn.removeEventListener('click', onSaveThen);
+        }
+        async function onDiscard(){
+          cleanup();
+          confirmDlg.close();
+          setDirty(false);
+          resolve(await nextAction({ discarded: true }));
+        }
+        function onCancel(){
+          cleanup();
+          confirmDlg.close();
+          resolve(false);
+        }
+        async function onSaveThen(){
+          cleanup();
+          confirmDlg.close();
+          const ok = await saveFile();
+          if (ok) resolve(await nextAction({ saved: true }));
+          else resolve(false);
+        }
+
+        discardBtn.addEventListener('click', onDiscard);
+        cancelBtn.addEventListener('click', onCancel);
+        saveThenBtn.addEventListener('click', onSaveThen);
+        confirmDlg.showModal();
+      });
+    }
+
+    async function openFile(){
+      if (supportsFSAccess) {
+        const [handle] = await window.showOpenFilePicker({
+          multiple: false,
+          types: [{
+            description: 'Text files',
+            accept: { 'text/plain': ['.txt','.md','.csv','.json','.xml','.yaml','.yml','.log','.py','.c','.cpp','.h','.java','.js','.ts','.html','.css'] }
+          }]
+        });
+        if (!handle) return false;
+
+        const file = await handle.getFile();
+        const text = await file.text();
+
+        currentFileHandle = handle;
+        setFileName(file.name);
+        editor.value = text;
+        lastSavedText = text;
+        setDirty(false);
+        editor.focus();
+        updateCaretPosition();
+        return true;
+      }
+
+      // Fallback: file input (cannot overwrite original)
+      return new Promise((resolve) => {
+        fileInput.value = '';
+        fileInput.onchange = async () => {
+          const f = fileInput.files && fileInput.files[0];
+          if (!f) return resolve(false);
+          const text = await f.text();
+          currentFileHandle = null;
+          setFileName(f.name);
+          editor.value = text;
+          lastSavedText = text;
+          setDirty(false);
+          editor.focus();
+          updateCaretPosition();
+          resolve(true);
+        };
+        fileInput.click();
+      });
+    }
+
+    async function saveToHandle(handle, text){
+      const writable = await handle.createWritable();
+      await writable.write(text);
+      await writable.close();
+    }
+
+    function downloadSave(text, fileName){
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName || 'Untitled.txt';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    async function saveFile(){
+      const text = editor.value;
+
+      try {
+        if (supportsFSAccess) {
+          if (currentFileHandle) {
+            await saveToHandle(currentFileHandle, text);
+            lastSavedText = text;
+            setDirty(false);
+            return true;
+          }
+          return await saveFileAs();
+        }
+
+        // Fallback: always download
+        downloadSave(text, currentFileName || 'Untitled.txt');
+        lastSavedText = text;
+        setDirty(false);
+        return true;
+
+      } catch (e) {
+        console.error(e);
+        alert('Save failed. Permission may not have been granted.');
+        return false;
+      }
+    }
+
+    async function saveFileAs(){
+      const text = editor.value;
+
+      try {
+        if (supportsFSAccess) {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: (currentFileName && currentFileName !== 'Untitled') ? currentFileName : 'Untitled.txt',
+            types: [{
+              description: 'Text files',
+              accept: { 'text/plain': ['.txt','.md','.csv','.json','.xml','.yaml','.yml','.log','.py','.c','.cpp','.h','.java','.js','.ts','.html','.css'] }
+            }]
+          });
+          if (!handle) return false;
+
+          await saveToHandle(handle, text);
+          currentFileHandle = handle;
+          setFileName(handle.name || currentFileName || 'Untitled.txt');
+
+          lastSavedText = text;
+          setDirty(false);
+          return true;
+        }
+
+        // Fallback: download
+        downloadSave(text, currentFileName || 'Untitled.txt');
+        lastSavedText = text;
+        setDirty(false);
+        return true;
+
+      } catch (e) {
+        console.error(e);
+        alert('Save As failed or was cancelled.');
+        return false;
+      }
+    }
+
+    newBtn.addEventListener('click', () => {
+      maybeConfirmUnsaved(async () => { resetStateForNewFile(); return true; });
+    });
+
+    openBtn.addEventListener('click', () => {
+      maybeConfirmUnsaved(async () => await openFile());
+    });
+
+    saveBtn.addEventListener('click', () => saveFile());
+    saveAsBtn.addEventListener('click', () => saveFileAs());
+
+    editor.addEventListener('input', () => { markDirtyIfNeeded(); updateCaretPosition(); });
+    editor.addEventListener('click', updateCaretPosition);
+    editor.addEventListener('keyup', updateCaretPosition);
+
+    document.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      const ctrlOrCmd = e.ctrlKey || e.metaKey;
+
+      if (ctrlOrCmd && key === 's') {
+        e.preventDefault();
+        if (e.shiftKey) saveFileAs(); else saveFile();
+      }
+      if (ctrlOrCmd && key === 'o') {
+        e.preventDefault();
+        maybeConfirmUnsaved(async () => await openFile());
+      }
+      if (ctrlOrCmd && key === 'n') {
+        e.preventDefault();
+        maybeConfirmUnsaved(async () => { resetStateForNewFile(); return true; });
+      }
+    });
+
+    window.addEventListener('beforeunload', (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+
+    setCapabilityHint();
+    resetStateForNewFile();
+  </script>
+</body>
+</html>

@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!--
+    Interactive Venturi visualiser
+    - Educational map of velocity / pressure in a Venturi tube using simple 1D relations.
+    - Two flow-model options:
+        (1) "Viscous (laminar)" : Bernoulli + a distributed Poiseuille-type viscous gradient (dp/dx ≈ 32 μ V / D²)
+        (2) "Inviscid"         : Ideal Bernoulli only (no viscous pressure loss)
+    - One geometry option added:
+        * Adjustable throat length (Lt) in mm.
+    Notes for readers/coders:
+    - This is NOT a CFD solver and does not solve Navier–Stokes. It is a 1D centreline pressure model plus an illustrative
+      parabolic cross-section profile for the colour map.
+    - The "laminar check" uses Re based on the local mean velocity and local diameter; it is only meaningful for the viscous model.
+  -->
+
+  <title>Venturi tube | Bernoulli (inviscid) and Bernoulli + viscous losses (laminar)</title>
+
+  <style>
+    /* ---------------------------
+       Page look and layout
+       --------------------------- */
+    :root{
+      --bg:#0b0f14;
+      --ink:#e6eef7;
+      --muted:#9fb2c7;
+      --line:#233246;
+    }
+    html,body{height:100%;}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      display:flex;
+      justify-content:center;
+    }
+    .wrap{
+      width:min(1180px, 96vw);
+      padding:18px 12px 28px;
+    }
+    h1{
+      margin: 6px 0 14px;
+      font-weight: 650;
+      letter-spacing: .3px;
+      font-size: 28px;
+      text-transform: lowercase;
+    }
+    .card{
+      background: linear-gradient(180deg, rgba(18,26,36,0.98), rgba(12,18,26,0.98));
+      border:1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 10px 35px rgba(0,0,0,.35);
+    }
+    .row{ display:grid; grid-template-columns: 1fr; gap: 12px; }
+
+    /* Controls are in small "forms" blocks arranged as a grid */
+    .controls{
+      margin-top: 12px;
+      display:grid;
+      grid-template-columns: 1.1fr 1fr 1fr 1fr;
+      gap: 12px;
+      align-items:end;
+    }
+    @media (max-width: 980px){ .controls{ grid-template-columns: 1fr 1fr; } }
+
+    label{ display:block; font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+
+    input, select, button{
+      width:100%;
+      box-sizing:border-box;
+      border-radius: 10px;
+      border:1px solid var(--line);
+      background: rgba(10,14,20,.85);
+      color: var(--ink);
+      padding: 10px 10px;
+      outline:none;
+      font-size: 14px;
+    }
+
+    .inline-note{
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    button{ cursor:pointer; transition: transform .04s ease, border-color .2s ease; }
+    button:hover{ border-color: rgba(107,220,255,.55); }
+    button:active{ transform: translateY(1px); }
+
+    /* Generic button toggle group */
+    .toggle{ display:flex; gap:10px; }
+    .toggle button{ flex:1; background: rgba(10,14,20,.65); }
+    .toggle button.active{
+      border-color: rgba(107,220,255,.8);
+      box-shadow: 0 0 0 2px rgba(107,220,255,.12) inset;
+    }
+
+    /* Small utility text styles */
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    .small{ font-size: 12px; color: var(--muted); }
+
+    /* Status pills for Reynolds check etc. */
+    .status{
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(10,14,20,.65);
+      display:flex;
+      flex-wrap:wrap;
+      gap: 10px 16px;
+      align-items:center;
+    }
+    .status .pill{
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(18,26,36,.55);
+      font-size: 13px;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+    .status .pill.warn{
+      border-color: rgba(255,204,102,.65);
+      box-shadow: 0 0 0 2px rgba(255,204,102,.10) inset;
+    }
+    .status .pill.ok{
+      border-color: rgba(107,220,255,.55);
+      box-shadow: 0 0 0 2px rgba(107,220,255,.10) inset;
+    }
+    .status .pill.muted{
+      opacity: 0.75;
+    }
+
+    /* Visual hint when viscosity is not used (inviscid model) */
+    .disabled{
+      opacity: 0.55;
+      filter: grayscale(35%);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <h1>bernoulli in venturi</h1>
+
+    <div class="card row">
+      <!--
+        Main SVG
+        - Left panel: venturi shape + colour map (clipped to the internal wall)
+        - Right panel: legend / colour bar
+      -->
+      <svg id="viz" viewBox="0 0 1040 440" width="100%" height="auto" role="img"
+           aria-label="Venturi: velocity and pressure field with optional viscous losses (educational model)">
+        <defs>
+          <!-- Background gradient for the plotting panel -->
+          <linearGradient id="panelGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#0e1723"/>
+            <stop offset="100%" stop-color="#0a0f16"/>
+          </linearGradient>
+
+          <!-- Clip to keep drawing within a rounded rectangle -->
+          <clipPath id="chartClip">
+            <rect x="14" y="14" width="850" height="412" rx="12" ry="12"></rect>
+          </clipPath>
+
+          <!-- Slight blur to soften the discrete rectangle map -->
+          <filter id="softenMap" x="-10%" y="-10%" width="120%" height="120%">
+            <feGaussianBlur stdDeviation="0.25"/>
+          </filter>
+
+          <!-- Arrowhead marker for "inlet" direction -->
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(230,238,247,.55)"></path>
+          </marker>
+
+          <!-- The venturiPath is built dynamically from geometry inputs -->
+          <path id="venturiPath" d=""></path>
+
+          <!-- Clip the colour map to the internal venturi wall -->
+          <clipPath id="venturiClip">
+            <use href="#venturiPath"></use>
+          </clipPath>
+        </defs>
+
+        <!-- Outer rounded border -->
+        <rect x="10" y="10" width="1020" height="420" rx="16" ry="16" fill="none" stroke="#233246" stroke-width="2"/>
+
+        <g>
+          <!-- Main plotting panel -->
+          <rect x="14" y="14" width="850" height="412" rx="12" ry="12" fill="url(#panelGrad)" stroke="#233246" stroke-width="1.5"/>
+
+          <g clip-path="url(#chartClip)">
+            <!-- Inlet label + arrow -->
+            <g opacity="0.9">
+              <text x="28" y="38" fill="#9fb2c7" font-size="12">Inlet</text>
+              <line x1="20" y1="52" x2="96" y2="52" stroke="rgba(230,238,247,.25)" stroke-width="2" marker-end="url(#arrow)"/>
+            </g>
+
+            <!-- The map is clipped to the venturi wall so it stays inside the tube -->
+            <g clip-path="url(#venturiClip)">
+              <g id="fieldMap" filter="url(#softenMap)"></g>
+            </g>
+
+            <!-- Venturi wall outline (double stroke for contrast) -->
+            <use href="#venturiPath" fill="none" stroke="rgba(230,238,247,.65)" stroke-width="2.2"/>
+            <use href="#venturiPath" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="6" opacity="0.4"/>
+
+            <!-- A few centreline/streamline hints (purely illustrative) -->
+            <g id="streamHints" fill="none" stroke="rgba(230,238,247,.45)" stroke-width="1.4" opacity="0.9">
+              <path id="sl0" d="" vector-effect="non-scaling-stroke"/>
+              <path id="sl1" d="" vector-effect="non-scaling-stroke"/>
+              <path id="sl2" d="" vector-effect="non-scaling-stroke"/>
+              <path id="sl3" d="" vector-effect="non-scaling-stroke"/>
+            </g>
+
+            <!-- "Tap" marker near the throat (mid-throat by default) -->
+            <g id="tap">
+              <circle id="tapPt" cx="0" cy="0" r="3.6" fill="#ffcc66" opacity="0.95"/>
+              <line id="tapLine" x1="0" y1="0" x2="0" y2="0" stroke="rgba(255,204,102,.75)" stroke-width="2"/>
+              <text id="tapText" x="0" y="0" fill="#ffcc66" font-size="12">Tap</text>
+            </g>
+
+            <!-- Small model note in the panel -->
+            <g opacity="0.9">
+              <text id="panelModelNote" x="28" y="416" fill="#9fb2c7" font-size="12">Model: -</text>
+            </g>
+          </g>
+        </g>
+
+        <!-- Legend panel on the right -->
+        <g transform="translate(880, 22)">
+          <rect x="0" y="0" width="140" height="388" rx="12" ry="12" fill="rgba(18,26,36,.9)" stroke="#233246" stroke-width="1.5"/>
+          <text x="14" y="26" fill="#e6eef7" font-size="14" font-weight="600">Legend</text>
+          <text id="legendMode" x="14" y="48" fill="#9fb2c7" font-size="12">Colour: velocity</text>
+
+          <g id="colourBar" transform="translate(16,66)"></g>
+
+          <text id="legendMax" x="48" y="84" fill="#e6eef7" font-size="12" font-weight="600">max</text>
+          <text id="legendMin" x="48" y="322" fill="#e6eef7" font-size="12" font-weight="600">min</text>
+
+          <text x="14" y="346" fill="#9fb2c7" font-size="12">
+            <tspan id="legendHint" x="14" dy="0">ρ = 1000 kg/m³</tspan>
+          </text>
+          <text x="14" y="368" fill="#e6eef7" font-size="13" font-weight="600">
+            <tspan id="legendNums" x="14" dy="0">v: 0 to 0</tspan>
+          </text>
+
+          <text x="14" y="392" fill="#9fb2c7" font-size="11">
+            <tspan id="legendModelLine" x="14" dy="0">Model: -</tspan>
+          </text>
+        </g>
+      </svg>
+
+      <!--
+        Controls block 1: fluid properties + display mode + flow model
+      -->
+      <div class="controls" aria-label="Inputs">
+        <div>
+          <label for="vel">Inlet mean velocity (m/s)</label>
+          <input id="vel" type="number" step="0.01" min="0" value="1.00" />
+        </div>
+
+        <div>
+          <label for="rho">Density ρ (kg/m³)</label>
+          <input id="rho" type="number" step="1" min="1" value="1000" />
+        </div>
+
+        <div id="muWrap">
+          <label for="mu">Dynamic viscosity μ (Pa·s)</label>
+          <input id="mu" type="number" step="0.0001" min="0.00001" value="0.0010" />
+        </div>
+
+        <div>
+          <label>Colour mode</label>
+          <div class="toggle" role="group" aria-label="Pressure or velocity colouring">
+            <button id="btnVel" class="active" type="button">Velocity</button>
+            <button id="btnP" type="button">Pressure</button>
+          </div>
+        </div>
+      </div>
+
+      <!--
+        Controls block 2: geometry and boundary condition
+        * Added throat length Lt (mm)
+      -->
+      <div class="controls" aria-label="Geometry Inputs">
+        <div>
+          <label for="D1">Inlet diameter D₁ (mm)</label>
+          <input id="D1" type="number" step="1" min="5" value="30" />
+        </div>
+
+        <div>
+          <label for="D2">Throat diameter D₂ (mm)</label>
+          <input id="D2" type="number" step="1" min="3" value="12" />
+        </div>
+
+        <div>
+          <label for="L">Venturi length L (mm)</label>
+          <input id="L" type="number" step="5" min="50" value="220" />
+        </div>
+
+        <div>
+          <label for="Lt">Throat length Lₜ (mm)</label>
+          <input id="Lt" type="number" step="5" min="0" value="45" />
+        </div>
+      </div>
+
+      <!--
+        Controls block 3: inlet pressure + flow-model selection
+      -->
+      <div class="controls" aria-label="Boundary and Model">
+        <div>
+          <label for="pin">Inlet pressure (bar)</label>
+          <input id="pin" type="number" step="0.01" min="0.2" value="1.00" />
+        </div>
+
+        <div>
+          <label>Flow model</label>
+          <div class="toggle" role="group" aria-label="Choose inviscid or viscous model">
+            <button id="btnVisc" class="active" type="button">Viscous (laminar)</button>
+            <button id="btnInv" type="button">Inviscid</button>
+          </div>
+        </div>
+
+        <!-- Empty placeholders to keep the grid aligned on wide screens -->
+        <div></div>
+        <div></div>
+      </div>
+
+      <!--
+        Reynolds number status
+        - Shown in both models, but "laminar check" is only relevant when viscous is selected.
+      -->
+      <div class="status" aria-label="Reynolds number check">
+        <span class="pill" id="reRange">Re range: -</span>
+        <span class="pill" id="reMax">Re_max: -</span>
+        <span class="pill" id="reWhere">at x/L: -</span>
+        <span class="pill" id="reFlag">Laminar check: -</span>
+      </div>
+
+      <!-- Model explanation for users -->
+      <div class="inline-note">
+        Continuity gives local mean velocity <span class="mono">V(x) = Q / A(x)</span>.
+        For the viscous option, pressure is estimated using Bernoulli plus a distributed laminar loss:
+        <span class="mono">dp/dx ≈ 32 μ V / D²</span>.
+        For the inviscid option, pressure follows ideal Bernoulli only.
+        The colour map shows either <span class="mono">v(r,x)</span> (cross-section profile) or <span class="mono">p(x)</span> (centreline).
+      </div>
+      <div class="small">
+        Educational approximation, not a full 2D Navier–Stokes solver. Cross-section profile is illustrative:
+        <span class="mono">v(r,x)=2V(x)(1-(r/R)²)</span> for the viscous option, and
+        <span class="mono">v(r,x)=V(x)</span> (uniform) for the inviscid option.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------------------------
+    // DOM references (inputs)
+    // ---------------------------
+    const elVel = document.getElementById('vel');
+    const elRho = document.getElementById('rho');
+    const elMu  = document.getElementById('mu');
+    const elMuWrap = document.getElementById('muWrap');
+
+    const elD1  = document.getElementById('D1');
+    const elD2  = document.getElementById('D2');
+    const elL   = document.getElementById('L');
+    const elLt  = document.getElementById('Lt');
+    const elPin = document.getElementById('pin');
+
+    // Toggle buttons for colouring mode
+    const btnVel = document.getElementById('btnVel');
+    const btnP = document.getElementById('btnP');
+
+    // Toggle buttons for flow model
+    const btnVisc = document.getElementById('btnVisc');
+    const btnInv  = document.getElementById('btnInv');
+
+    // ---------------------------
+    // DOM references (SVG)
+    // ---------------------------
+    const venturiPath = document.getElementById('venturiPath');
+    const fieldMap = document.getElementById('fieldMap');
+
+    const sl0 = document.getElementById('sl0');
+    const sl1 = document.getElementById('sl1');
+    const sl2 = document.getElementById('sl2');
+    const sl3 = document.getElementById('sl3');
+
+    const tapPt = document.getElementById('tapPt');
+    const tapLine = document.getElementById('tapLine');
+    const tapText = document.getElementById('tapText');
+
+    const panelModelNote = document.getElementById('panelModelNote');
+
+    const legendMode = document.getElementById('legendMode');
+    const legendHint = document.getElementById('legendHint');
+    const legendNums = document.getElementById('legendNums');
+    const legendMax = document.getElementById('legendMax');
+    const legendMin = document.getElementById('legendMin');
+    const legendModelLine = document.getElementById('legendModelLine');
+    const colourBar = document.getElementById('colourBar');
+
+    const reRangeEl = document.getElementById('reRange');
+    const reMaxEl = document.getElementById('reMax');
+    const reWhereEl = document.getElementById('reWhere');
+    const reFlagEl = document.getElementById('reFlag');
+
+    // ---------------------------
+    // Plot layout constants
+    // ---------------------------
+    const chart = { x0: 14, y0: 14, w: 850, h: 412 };
+    const xStart = chart.x0 + 18;
+    const xEnd   = chart.x0 + chart.w - 18;
+    const yMid = chart.y0 + chart.h/2;
+
+    // Current UI state
+    let colourMode = 'velocity';  // 'velocity' | 'pressure'
+    let flowModel  = 'viscous';   // 'viscous' | 'inviscid'
+
+    // ---------------------------
+    // Colour palette utilities
+    // ---------------------------
+    const palette = [
+      {t:0.00, c:[ 40,110,255]},
+      {t:0.45, c:[ 70,255,255]},
+      {t:0.70, c:[255,230, 90]},
+      {t:1.00, c:[255, 70,115]}
+    ];
+
+    function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
+    function lerp(a,b,t){ return a + (b-a)*t; }
+
+    function colourAt(u){
+      u = clamp(u, 0, 1);
+      let a = palette[0], b = palette[palette.length-1];
+      for(let i=0;i<palette.length-1;i++){
+        if(u >= palette[i].t && u <= palette[i+1].t){ a = palette[i]; b = palette[i+1]; break; }
+      }
+      const tt = (u - a.t) / (b.t - a.t + 1e-12);
+      const r = Math.round(lerp(a.c[0], b.c[0], tt));
+      const g = Math.round(lerp(a.c[1], b.c[1], tt));
+      const b2= Math.round(lerp(a.c[2], b.c[2], tt));
+      return `rgb(${r},${g},${b2})`;
+    }
+
+    function buildColourBar(){
+      // Rebuilds the vertical colour bar in the legend
+      while(colourBar.firstChild) colourBar.removeChild(colourBar.firstChild);
+      const steps = 44, w = 22, h = 260, dh = h/steps;
+
+      for(let i=0;i<steps;i++){
+        const u = 1 - i/(steps-1);
+        const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+        rect.setAttribute('x','0');
+        rect.setAttribute('y', (i*dh).toFixed(2));
+        rect.setAttribute('width', w);
+        rect.setAttribute('height', (dh + 0.8).toFixed(2));
+        rect.setAttribute('fill', colourAt(u));
+        rect.setAttribute('opacity','0.98');
+        colourBar.appendChild(rect);
+      }
+      const outline = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      outline.setAttribute('x','0'); outline.setAttribute('y','0');
+      outline.setAttribute('width', w); outline.setAttribute('height', h);
+      outline.setAttribute('rx','6'); outline.setAttribute('ry','6');
+      outline.setAttribute('fill','none');
+      outline.setAttribute('stroke','rgba(230,238,247,.22)');
+      outline.setAttribute('stroke-width','1');
+      colourBar.appendChild(outline);
+    }
+
+    // Smooth transition function used in the diameter profile
+    function smoothstep(t){ t=clamp(t,0,1); return t*t*(3-2*t); }
+
+    // ---------------------------
+    // Geometry model
+    // ---------------------------
+    // We represent the venturi diameter D(x) using three zones along s = x/L:
+    //  - contraction: D1 -> D2 (smooth)
+    //  - throat: constant D2, with adjustable length Lt
+    //  - diffuser: D2 -> D1 (smooth)
+    //
+    // For simplicity, contraction end is kept at a fixed fraction of L (sCEnd).
+    // Throat length is user-set, and the diffuser takes the remaining length.
+    function geometryFractions(){
+      const Lm  = (parseFloat(elL.value)/1000.0);
+      const Ltm = (parseFloat(elLt.value)/1000.0);
+
+      // Contraction ends at 35% of the total length (matches previous version defaults).
+      const sCEnd = 0.35;
+
+      // Require at least 5% of length for diffuser so the exit can reopen.
+      const sDiffMin = 0.05;
+
+      const sT = (Lm > 1e-9) ? (Ltm / Lm) : 0;
+      const sTClamped = clamp(sT, 0, 1 - sCEnd - sDiffMin);
+
+      const sTEnd = sCEnd + sTClamped;
+      return { sCEnd, sTEnd };
+    }
+
+    function D_of_s(s, D1, D2){
+      const g = geometryFractions();
+      const sCEnd = g.sCEnd;
+      const sTEnd = g.sTEnd;
+
+      if(s <= sCEnd){
+        const a = smoothstep(s/sCEnd);
+        return D1 + (D2 - D1)*a;
+      }
+      if(s <= sTEnd){
+        return D2;
+      }
+      const a = smoothstep((s - sTEnd) / (1 - sTEnd + 1e-12));
+      return D2 + (D1 - D2)*a;
+    }
+
+    // ---------------------------
+    // SVG path builder
+    // ---------------------------
+    function buildVenturiPath(){
+      const D1 = (parseFloat(elD1.value)/1000.0);
+      const D2 = (parseFloat(elD2.value)/1000.0);
+
+      // Determine scaling so the biggest diameter fits comfortably in the panel height
+      const maxR = Math.max(D1,D2)/2;
+      const usableHalf = chart.h*0.38;
+      const yScale = usableHalf / maxR;
+
+      const N = 180;
+      const top = [];
+      const bot = [];
+
+      for(let i=0;i<=N;i++){
+        const s = i/N;
+        const x = xStart + s*(xEnd-xStart);
+        const D = D_of_s(s, D1, D2);
+        const y = (D/2)*yScale;
+        top.push([x, yMid - y]);
+        bot.push([x, yMid + y]);
+      }
+
+      // Build a closed polygon path: go along the top wall, then back along the bottom wall
+      let d = '';
+      for(let i=0;i<top.length;i++){
+        d += (i===0 ? 'M' : 'L') + ` ${top[i][0].toFixed(2)} ${top[i][1].toFixed(2)} `;
+      }
+      for(let i=bot.length-1;i>=0;i--){
+        d += `L ${bot[i][0].toFixed(2)} ${bot[i][1].toFixed(2)} `;
+      }
+      d += 'Z';
+      venturiPath.setAttribute('d', d);
+
+      // Streamline hints: horizontal lines at different fractions of radius
+      function sl(offsetFrac){
+        let dd = '';
+        for(let i=0;i<=N;i++){
+          const s = i/N;
+          const x = xStart + s*(xEnd-xStart);
+          const D = D_of_s(s, D1, D2);
+          const y = offsetFrac * (D/2) * yScale;
+          dd += (i===0 ? 'M' : 'L') + ` ${x.toFixed(2)} ${(yMid + y).toFixed(2)} `;
+        }
+        return dd.trim();
+      }
+      sl0.setAttribute('d', sl(0.0));
+      sl1.setAttribute('d', sl(0.35));
+      sl2.setAttribute('d', sl(-0.35));
+      sl3.setAttribute('d', sl(0.65));
+
+      // Tap at mid-throat (by construction) so it tracks a changing throat length
+      const g = geometryFractions();
+      const sTap = 0.5 * (g.sCEnd + g.sTEnd);
+
+      const xTap = xStart + sTap*(xEnd-xStart);
+      const DTap = D_of_s(sTap, D1, D2);
+      const yWall = yMid - (DTap/2)*yScale;
+
+      tapPt.setAttribute('cx', xTap.toFixed(2));
+      tapPt.setAttribute('cy', yWall.toFixed(2));
+
+      tapLine.setAttribute('x1', xTap.toFixed(2));
+      tapLine.setAttribute('y1', yWall.toFixed(2));
+      tapLine.setAttribute('x2', (xTap+32).toFixed(2));
+      tapLine.setAttribute('y2', (yWall-26).toFixed(2));
+
+      tapText.setAttribute('x', (xTap+38).toFixed(2));
+      tapText.setAttribute('y', (yWall-30).toFixed(2));
+    }
+
+    // ---------------------------
+    // 1D line computation (centreline p(s) and mean V(s))
+    // ---------------------------
+    function computeLine(){
+      const V1 = Math.max(0, parseFloat(elVel.value || '0'));
+      const rho = Math.max(1e-12, parseFloat(elRho.value || '1000'));
+      const mu  = Math.max(1e-12, parseFloat(elMu.value  || '0.001'));
+      const p1  = Math.max(0, parseFloat(elPin.value || '1.0')) * 1e5;
+
+      const D1 = (parseFloat(elD1.value)/1000.0);
+      const D2 = (parseFloat(elD2.value)/1000.0);
+      const L  = (parseFloat(elL.value)/1000.0);
+
+      // Flow rate from inlet mean velocity and inlet area
+      const A1 = Math.PI*D1*D1/4;
+      const Q  = V1 * A1;
+
+      const N = 220;
+      const Vs = new Array(N+1);
+      const ps = new Array(N+1);
+      const Ds = new Array(N+1);
+
+      // Compute mean velocity profile from continuity
+      for(let i=0;i<=N;i++){
+        const s = i/N;
+        const D = D_of_s(s, D1, D2);
+        const A = Math.PI*D*D/4;
+        const V = (A>0) ? (Q/A) : 0;
+        Ds[i] = D;
+        Vs[i] = V;
+      }
+
+      // Pressure model options:
+      //  - Inviscid: direct Bernoulli relative to inlet
+      //  - Viscous: integrate Bernoulli increment + distributed viscous loss
+      if(flowModel === 'inviscid'){
+        for(let i=0;i<=N;i++){
+          const V = Vs[i];
+          ps[i] = p1 + 0.5 * rho * (V1*V1 - V*V);
+        }
+      }else{
+        let p = p1;
+        ps[0] = p1;
+        for(let i=1;i<=N;i++){
+          const dx = L/N;
+          const V = Vs[i];
+          const Vprev = Vs[i-1];
+          const D = Ds[i];
+
+          // Bernoulli kinetic term increment (centreline), ignoring elevation
+          const dpk = 0.5 * rho * (Vprev*Vprev - V*V);
+
+          // Local laminar Poiseuille gradient (educational approximation)
+          const dpdx = 32 * mu * V / (D*D); // Pa/m
+          const dpv = dpdx * dx;
+
+          p = p + dpk - dpv;
+          ps[i] = p;
+        }
+      }
+
+      // Choose tap index at mid-throat, as in buildVenturiPath()
+      const g = geometryFractions();
+      const sTap = 0.5 * (g.sCEnd + g.sTEnd);
+      const idxTap = Math.max(0, Math.min(N, Math.round(sTap*N)));
+
+      const VTap = Vs[idxTap];
+      const pTap = ps[idxTap];
+      const ReTap = rho * VTap * Ds[idxTap] / mu;
+
+      // Reynolds number profile (reference and/or laminar check)
+      let ReMin = Infinity, ReMax = -Infinity, idxMax = 0;
+      const Res = new Array(N+1);
+      for(let i=0;i<=N;i++){
+        const Re = rho * Vs[i] * Ds[i] / mu;
+        Res[i] = Re;
+        if(Re < ReMin) ReMin = Re;
+        if(Re > ReMax){ ReMax = Re; idxMax = i; }
+      }
+      const sMax = idxMax / N;
+
+      return {rho, mu, p1, Q, L, Vs, ps, Ds, pTap, VTap, ReTap, Res, ReMin, ReMax, sMax, N, V1};
+    }
+
+    // ---------------------------
+    // Field map builder (rectangular cells clipped to venturi)
+    // ---------------------------
+    function buildFieldMap(){
+      // Update venturi wall path and streamline hints first
+      buildVenturiPath();
+
+      // Clear previous map rectangles
+      while(fieldMap.firstChild) fieldMap.removeChild(fieldMap.firstChild);
+
+      // Compute 1D profiles
+      const line = computeLine();
+
+      const D1 = (parseFloat(elD1.value)/1000.0);
+      const D2 = (parseFloat(elD2.value)/1000.0);
+      const maxR = Math.max(D1,D2)/2;
+      const usableHalf = chart.h*0.38;
+      const yScale = usableHalf / maxR;
+
+      // Discrete grid resolution for the colour map (higher = smoother, but slower)
+      const nx = 150;
+      const ny = 70;
+      const dx = (xEnd - xStart) / nx;
+      const dy = chart.h / ny;
+
+      // Linear interpolation helper for arrays defined on s in [0,1]
+      function interp(arr, s){
+        const t = clamp(s,0,1) * line.N;
+        const i0 = Math.floor(t);
+        const i1 = Math.min(line.N, i0+1);
+        const a = t - i0;
+        return arr[i0]*(1-a) + arr[i1]*a;
+      }
+
+      // Determine min/max for scaling the colour map (for the current inputs)
+      let vMin = Infinity, vMax = -Infinity;
+      let pMin = Infinity, pMax = -Infinity;
+
+      for(let j=0;j<ny;j++){
+        const yC = chart.y0 + (j+0.5)*dy;
+        const rSvg = Math.abs(yC - yMid);
+        for(let i=0;i<nx;i++){
+          const xC = xStart + (i+0.5)*dx;
+          const s = (xC - xStart) / (xEnd - xStart);
+          const D = D_of_s(s, D1, D2);
+          const Rsvg = (D/2)*yScale;
+          if(rSvg > Rsvg) continue;
+
+          const Vmean = interp(line.Vs, s);
+          const p = interp(line.ps, s);
+
+          // Cross-section profile coordinate
+          const rr = (Rsvg>0) ? (rSvg/Rsvg) : 0;
+                    // Cross-section profile (illustrative):
+          //   - Viscous option: parabolic Poiseuille-like profile (max at centreline, zero at wall)
+          //   - Inviscid option: uniform (plug) profile
+          let v = 0;
+          if(flowModel === 'inviscid'){
+            v = Vmean;
+          }else{
+            v = 2*Vmean*(1 - rr*rr);
+          }
+
+          vMin = Math.min(vMin, v); vMax = Math.max(vMax, v);
+          pMin = Math.min(pMin, p); pMax = Math.max(pMax, p);
+        }
+      }
+
+      if(!isFinite(vMin) || !isFinite(vMax) || vMax-vMin < 1e-12){
+        vMin = 0; vMax = Math.max(1e-9, parseFloat(elVel.value||'0'));
+      }
+      if(!isFinite(pMin) || !isFinite(pMax) || pMax-pMin < 1e-6){
+        pMin = line.p1; pMax = line.p1;
+      }
+
+      // Map gamma to slightly emphasise mid-range differences visually
+      const gamma = 0.65;
+
+      // Build the rectangle grid, skipping cells that lie outside the venturi wall
+      for(let j=0;j<ny;j++){
+        const y = chart.y0 + j*dy;
+        const yC = y + 0.5*dy;
+        const rSvg = Math.abs(yC - yMid);
+
+        for(let i=0;i<nx;i++){
+          const x = xStart + i*dx;
+          const xC = x + 0.5*dx;
+          const s = (xC - xStart) / (xEnd - xStart);
+
+          const D = D_of_s(s, D1, D2);
+          const Rsvg = (D/2)*yScale;
+          if(rSvg > Rsvg) continue;
+
+          const Vmean = interp(line.Vs, s);
+          const p = interp(line.ps, s);
+          const rr = (Rsvg>0) ? (rSvg/Rsvg) : 0;
+                    // Cross-section profile (illustrative):
+          //   - Viscous option: parabolic Poiseuille-like profile (max at centreline, zero at wall)
+          //   - Inviscid option: uniform (plug) profile
+          let v = 0;
+          if(flowModel === 'inviscid'){
+            v = Vmean;
+          }else{
+            v = 2*Vmean*(1 - rr*rr);
+          }
+
+          let u = 0;
+          if(colourMode === 'velocity'){
+            u = (v - vMin) / (vMax - vMin);
+          }else{
+            u = (p - pMin) / (pMax - pMin);
+          }
+          u = clamp(u, 0, 1);
+          u = Math.pow(u, gamma);
+
+          const r = document.createElementNS('http://www.w3.org/2000/svg','rect');
+          r.setAttribute('x', x.toFixed(2));
+          r.setAttribute('y', y.toFixed(2));
+          r.setAttribute('width', dx.toFixed(2));
+          r.setAttribute('height', dy.toFixed(2));
+          r.setAttribute('fill', colourAt(u));
+          r.setAttribute('opacity', '1.0');
+          fieldMap.appendChild(r);
+        }
+      }
+
+      // Legend, notes, and tap readout
+      buildColourBar();
+
+      // Legend hint depends on whether μ matters
+      if(flowModel === 'inviscid'){
+        legendHint.textContent = `ρ = ${line.rho.toFixed(0)} kg/m³ (μ not used in inviscid model)`;
+        legendModelLine.textContent = 'Model: inviscid Bernoulli';
+        panelModelNote.textContent = 'Model: incompressible, inviscid (Bernoulli)';
+      }else{
+        legendHint.textContent = `ρ = ${line.rho.toFixed(0)} kg/m³, μ = ${line.mu.toExponential(2)} Pa·s`;
+        legendModelLine.textContent = 'Model: Bernoulli + laminar loss';
+        panelModelNote.textContent = 'Model: incompressible, viscous (laminar approximation)';
+      }
+
+      if(colourMode === 'velocity'){
+        legendMode.textContent = 'Colour: velocity (local)';
+        legendNums.textContent = `v: ${vMin.toFixed(3)} to ${vMax.toFixed(3)} m/s`;
+        legendMax.textContent = `${vMax.toFixed(3)} m/s`;
+        legendMin.textContent = `${vMin.toFixed(3)} m/s`;
+      }else{
+        legendMode.textContent = 'Colour: pressure (centreline)';
+        legendNums.textContent = `p: ${(pMin/1e5).toFixed(4)} to ${(pMax/1e5).toFixed(4)} bar`;
+        legendMax.textContent = `${(pMax/1e5).toFixed(4)} bar`;
+        legendMin.textContent = `${(pMin/1e5).toFixed(4)} bar`;
+      }
+
+      // Reynolds number display (reference; laminar check only meaningful in viscous mode)
+      const ReCrit = 2300;
+      const reMin = line.ReMin;
+      const reMax = line.ReMax;
+      const sMax = line.sMax;
+
+      if(reRangeEl){ reRangeEl.textContent = `Re range: ${Math.round(reMin)} to ${Math.round(reMax)}`; }
+      if(reMaxEl){ reMaxEl.textContent = `Re_max: ${Math.round(reMax)}`; }
+      if(reWhereEl){ reWhereEl.textContent = `at x/L: ${sMax.toFixed(2)}`; }
+
+      if(reFlagEl){
+        if(flowModel === 'viscous'){
+          const ok = (reMax < ReCrit);
+          reFlagEl.textContent = ok ? `Laminar check: OK (Re_max < ${ReCrit})` : `Warning: Re_max ≥ ${ReCrit} (transition likely)`;
+          reFlagEl.classList.toggle('ok', ok);
+          reFlagEl.classList.toggle('warn', !ok);
+          reFlagEl.classList.remove('muted');
+        }else{
+          // In inviscid mode, label this as contextual information only
+          reFlagEl.textContent = `Re (reference): ${Math.round(reMax)} (laminar check not applied)`;
+          reFlagEl.classList.remove('ok');
+          reFlagEl.classList.remove('warn');
+          reFlagEl.classList.add('muted');
+        }
+      }
+
+      // Tap readout: local pressure and Re (Re still computed from μ input)
+      tapText.textContent = `Tap (mid-throat): p ≈ ${(line.pTap/1e5).toFixed(3)} bar, Re ≈ ${Math.round(line.ReTap)}`;
+    }
+
+    // ---------------------------
+    // State setters (toggles)
+    // ---------------------------
+    function setColourMode(m){
+      colourMode = m;
+      btnVel.classList.toggle('active', colourMode === 'velocity');
+      btnP.classList.toggle('active', colourMode === 'pressure');
+      buildFieldMap();
+    }
+
+    function setFlowModel(m){
+      flowModel = m;
+      btnVisc.classList.toggle('active', flowModel === 'viscous');
+      btnInv.classList.toggle('active', flowModel === 'inviscid');
+
+      // Visually de-emphasise viscosity input when not used.
+      if(elMuWrap){
+        elMuWrap.classList.toggle('disabled', flowModel === 'inviscid');
+      }
+      buildFieldMap();
+    }
+
+    // ---------------------------
+    // Input listeners
+    // ---------------------------
+    [elVel, elRho, elMu, elD1, elD2, elL, elLt, elPin].forEach(el => el.addEventListener('input', buildFieldMap));
+    btnVel.addEventListener('click', () => setColourMode('velocity'));
+    btnP.addEventListener('click', () => setColourMode('pressure'));
+    btnVisc.addEventListener('click', () => setFlowModel('viscous'));
+    btnInv.addEventListener('click', () => setFlowModel('inviscid'));
+
+    // Initial render
+    setFlowModel('viscous');
+    setColourMode('velocity');
+  </script>
+</body>
+</html>
