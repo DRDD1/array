@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Maze Muncher</title>
+<style>
+  :root{
+    --bg:#08101f;
+    --panel:#101933;
+    --panel2:#18244a;
+    --text:#f4f7ff;
+    --muted:#bcc7e8;
+    --accent:#ffd54a;
+    --accent2:#2f6cff;
+    --wall:#295dff;
+    --dot:#ffd166;
+    --power:#ffffff;
+    --player:#ff6a00;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{
+    margin:0;
+    font-family:Arial, Helvetica, sans-serif;
+    background:linear-gradient(180deg,#070b17,#0d1730 55%,#091021);
+    color:var(--text);
+    display:flex;
+    justify-content:center;
+    min-height:100vh;
+  }
+  .app{width:min(100vw,780px);padding:10px}
+  .card{
+    background:rgba(16,25,51,0.96);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:18px;
+    box-shadow:0 12px 28px rgba(0,0,0,0.28);
+  }
+  .header,.footer,.menu,.game-wrap{padding:12px}
+  .header,.menu,.game-wrap{margin-bottom:10px}
+  h1{margin:0 0 6px 0;font-size:1.28rem}
+  .sub,.footer,.note{color:var(--muted);line-height:1.4}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .field label{display:block;font-size:0.9rem;color:var(--muted);margin-bottom:5px}
+  select,button{
+    width:100%;border:none;border-radius:14px;padding:12px;font-size:1rem;
+  }
+  select{background:var(--panel2);color:var(--text)}
+  button{background:var(--accent);color:#111;font-weight:700}
+  .secondary{background:#253360;color:var(--text);font-weight:600}
+  .hud{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+  .box{background:var(--panel2);border-radius:14px;padding:10px;text-align:center;min-height:58px}
+  .k{color:var(--muted);font-size:0.78rem;margin-bottom:4px}
+  .v{font-size:1rem;font-weight:700}
+  .canvas-shell{
+    background:#030815;border-radius:18px;padding:8px;display:flex;justify-content:center;align-items:center
+  }
+  canvas{
+    width:100%;height:auto;background:#030712;border-radius:14px;display:block;image-rendering:pixelated;touch-action:none
+  }
+  .controls{margin-top:12px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
+  .left-tools{display:grid;gap:8px}
+  .mini{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .joystick-wrap{display:flex;justify-content:center;align-items:center;padding:4px}
+  .joystick{
+    position:relative;width:min(42vw,170px);height:min(42vw,170px);border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #25356d, #131c3f 70%);
+    border:1px solid rgba(255,255,255,0.08);touch-action:none;
+  }
+  .joy-ring{position:absolute;inset:12px;border-radius:50%;border:1px dashed rgba(255,255,255,0.12)}
+  .knob{
+    position:absolute;width:56px;height:56px;left:50%;top:50%;transform:translate(-50%,-50%);
+    border-radius:50%;background:radial-gradient(circle at 35% 35%, #ffe57b, #ffc400 70%);
+    box-shadow:0 6px 18px rgba(0,0,0,0.35)
+  }
+  @media (max-width:620px){
+    .row,.controls{grid-template-columns:1fr}
+    .hud{grid-template-columns:1fr 1fr}
+    .joystick-wrap{order:-1}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header card">
+    <h1>Maze Muncher</h1>
+    <div class="sub">Single-file html game controllable with on-screen joystick or arrows key-strokes, with sound and browser high score.</div>
+  </div>
+
+  <div class="menu card">
+    <div class="row">
+      <div class="field">
+        <label for="difficulty">Difficulty</label>
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="normal" selected>Normal</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="mazeType">Maze type</label>
+        <select id="mazeType">
+          <option value="classic" selected>Classic fixed maze</option>
+          <option value="generated">Generated maze</option>
+        </select>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <button id="startBtn">Start New Game</button>
+      <button id="muteBtn" class="secondary">Sound: On</button>
+    </div>
+  </div>
+
+  <div class="game-wrap card">
+    <div class="hud">
+      <div class="box"><div class="k">Score</div><div class="v" id="scoreEl">0</div></div>
+      <div class="box"><div class="k">Lives</div><div class="v" id="livesEl">3</div></div>
+      <div class="box"><div class="k">Level</div><div class="v" id="levelEl">1</div></div>
+      <div class="box"><div class="k">High score</div><div class="v" id="highEl">0</div></div>
+    </div>
+
+    <div class="canvas-shell">
+      <canvas id="game" width="420" height="420"></canvas>
+    </div>
+
+    <div class="controls">
+      <div class="left-tools">
+        <div class="mini">
+          <button id="pauseBtn" class="secondary">Pause</button>
+          <button id="resetBtn" class="secondary">Reset</button>
+        </div>
+        <div class="field" style="margin-top:2px;">
+          <label for="playerSpeedSlider">Sphere speed: <span id="playerSpeedValue">2.7</span></label>
+          <input id="playerSpeedSlider" type="range" min="1.2" max="3.2" step="0.1" value="2.7" style="width:100%;">
+        </div>
+        <div class="field">
+          <label for="ghostSpeedSlider">Ghost speed: <span id="ghostSpeedValue">2.2</span></label>
+          <input id="ghostSpeedSlider" type="range" min="0.8" max="3.0" step="0.1" value="2.2" style="width:100%;">
+        </div>
+        <div class="note">
+          Use the joystick on mobile or arrow keys on desktop. Hold a direction early and Sphere will turn at the next valid junction, rather than sticking against the wall.
+        </div>
+      </div>
+      <div class="joystick-wrap">
+        <div class="joystick" id="joystick">
+          <div class="joy-ring"></div>
+          <div class="knob" id="knob"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer card">
+    Developed as educational training tool. Java-CSS based  (c)DD2026 .
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  const scoreEl = document.getElementById('scoreEl');
+  const livesEl = document.getElementById('livesEl');
+  const levelEl = document.getElementById('levelEl');
+  const highEl = document.getElementById('highEl');
+  const difficultyEl = document.getElementById('difficulty');
+  const mazeTypeEl = document.getElementById('mazeType');
+  const startBtn = document.getElementById('startBtn');
+  const muteBtn = document.getElementById('muteBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const playerSpeedSlider = document.getElementById('playerSpeedSlider');
+  const ghostSpeedSlider = document.getElementById('ghostSpeedSlider');
+  const playerSpeedValue = document.getElementById('playerSpeedValue');
+  const ghostSpeedValue = document.getElementById('ghostSpeedValue');
+  const joystick = document.getElementById('joystick');
+  const knob = document.getElementById('knob');
+
+  const STORAGE_KEY = 'maze-muncher_mobile_highscore_v1';
+  let highScore = Number(localStorage.getItem(STORAGE_KEY) || 0);
+  highEl.textContent = highScore;
+
+  const cols = 21;
+  const rows = 21;
+  const tileSize = 20;
+  canvas.width = cols * tileSize;
+  canvas.height = rows * tileSize;
+
+  let maze = [];
+  let dotsLeft = 0;
+  let score = 0;
+  let gameTime = 0;
+  let coinBornTime = {};
+  let lives = 3;
+  let level = 1;
+  let gameOver = false;
+  let paused = false;
+  let soundOn = true;
+  let lastTime = 0;
+  let player = null;
+  let ghosts = [];
+  let customPlayerSpeed = 2.7;
+  let customGhostSpeed = 2.2;
+
+  const dirVec = {
+    left:{x:-1,y:0},
+    right:{x:1,y:0},
+    up:{x:0,y:-1},
+    down:{x:0,y:1}
+  };
+
+  const difficultySettings = {
+    easy:{ghostSpeed:1.8, playerSpeed:2.5},
+    normal:{ghostSpeed:2.2, playerSpeed:2.7},
+    hard:{ghostSpeed:2.6, playerSpeed:2.9}
+  };
+
+  function syncSpeedControls(fromDifficulty=false){
+    if(fromDifficulty){
+      const settings = difficultySettings[difficultyEl.value];
+      customPlayerSpeed = settings.playerSpeed;
+      customGhostSpeed = settings.ghostSpeed;
+    }
+    playerSpeedSlider.value = customPlayerSpeed.toFixed(1);
+    ghostSpeedSlider.value = customGhostSpeed.toFixed(1);
+    playerSpeedValue.textContent = Number(customPlayerSpeed).toFixed(1);
+    ghostSpeedValue.textContent = Number(customGhostSpeed).toFixed(1);
+    if(player) player.speed = customPlayerSpeed;
+    ghosts.forEach((g, i) => {
+      g.speed = customGhostSpeed + (level - 1) * 0.10 + i * 0.02;
+    });
+  }
+
+  const classicTemplate = [
+    '#####################',
+    '#.........#.........#',
+    '#.###.###.#.###.###.#',
+    '#o###.###.#.###.###o#',
+    '#...................#',
+    '#.###.#.#####.#.###.#',
+    '#.....#...#...#.....#',
+    '#####.###.#.###.#####',
+    '#.........#.........#',
+    '#.###.###...###.###.#',
+    '#...#.....P.....#...#',
+    '###.#.##.###.##.#.###',
+    '#.....#...#...#.....#',
+    '#.#####.#.#.#.#####.#',
+    '#o......#...#......o#',
+    '###.###.#####.###.###',
+    '#...#...........#...#',
+    '#.#.#.###.#.###.#.#.#',
+    '#.#.....#.#.#.....#.#',
+    '#.........G.........#',
+    '#####################'
+  ];
+
+  function cloneMaze(arr){ return arr.map(r => r.split('')); }
+
+  function cellCentre(tx, ty){
+    return {x: tx * tileSize + tileSize / 2, y: ty * tileSize + tileSize / 2};
+  }
+
+  function pixelToTile(px, py){
+    return {tx: Math.floor(px / tileSize), ty: Math.floor(py / tileSize)};
+  }
+
+  function tileIndexFromCentre(value){
+    return Math.round((value - tileSize / 2) / tileSize);
+  }
+
+  function centreCoord(t){
+    return t * tileSize + tileSize / 2;
+  }
+
+  function isWallCell(tx, ty){
+    if(tx < 0 || tx >= cols || ty < 0 || ty >= rows) return true;
+    return maze[ty][tx] === '#';
+  }
+
+  function tileAtPixel(px, py){
+    const {tx, ty} = pixelToTile(px, py);
+    return isWallCell(tx, ty) ? '#' : maze[ty][tx];
+  }
+
+  function generateMaze(width=21, height=21){
+    const grid = Array.from({length:height}, () => Array.from({length:width}, () => '#'));
+
+    function carve(x, y){
+      grid[y][x] = '.';
+      const dirs = [[2,0],[-2,0],[0,2],[0,-2]].sort(() => Math.random() - 0.5);
+      for(const [dx, dy] of dirs){
+        const nx = x + dx, ny = y + dy;
+        if(nx > 0 && nx < width - 1 && ny > 0 && ny < height - 1 && grid[ny][nx] === '#'){
+          grid[y + dy / 2][x + dx / 2] = '.';
+          carve(nx, ny);
+        }
+      }
+    }
+
+    carve(1,1);
+
+    const cx = Math.floor(width/2);
+    const cy = Math.floor(height/2);
+    grid[cy][cx] = 'P';
+    if(cy + 2 < height - 1) grid[cy + 2][cx] = 'G';
+    grid[1][1] = 'o';
+    grid[1][width-2] = 'o';
+    grid[height-2][1] = 'o';
+    grid[height-2][width-2] = 'o';
+
+    for(let x=0; x<width; x++){
+      grid[0][x] = '#';
+      grid[height-1][x] = '#';
+    }
+    for(let y=0; y<height; y++){
+      grid[y][0] = '#';
+      grid[y][width-1] = '#';
+    }
+
+    return grid;
+  }
+
+  function resetPositionsOnly(){
+    for(let y=0; y<rows; y++){
+      for(let x=0; x<cols; x++){
+        if(maze[y][x] === 'P'){
+          const c = cellCentre(x, y);
+          player = {
+            x:c.x, y:c.y,
+            dir:'left', nextDir:'left',
+            speed:customPlayerSpeed,
+            radius:tileSize * 0.42,
+            mouth:0,
+            powerTimer:0,
+            spawn:{x:c.x, y:c.y}
+          };
+        }
+        if(maze[y][x] === 'G'){
+          ghosts = [];
+          const ghostConfigs = [
+            {name:'hunter', color:'#ff5a5a', dir:'left',  scatterTarget:{x:cols-2, y:1}},
+            {name:'scout',  color:'#ff9cf3', dir:'up',    scatterTarget:{x:1, y:1}},
+            {name:'shadow',   color:'#4dd5ff', dir:'right', scatterTarget:{x:cols-2, y:rows-2}},
+            {name:'wanderer',  color:'#ffb04d', dir:'down',  scatterTarget:{x:1, y:rows-2}}
+          ];
+          const c = cellCentre(x, y);
+          const spawnTiles = [x - 3, x - 1, x + 1, x + 3].map(tx => {
+            const safeTx = Math.max(1, Math.min(cols - 2, tx));
+            return cellCentre(safeTx, y);
+          });
+          const releaseDirs = ['right', 'up', 'up', 'left'];
+          for(let i=0;i<ghostConfigs.length;i++){
+            const config = ghostConfigs[i];
+            const spawn = spawnTiles[i];
+            ghosts.push({
+              x: spawn.x,
+              y: spawn.y,
+              startDelay: i * 0.9,
+              dir: releaseDirs[i],
+              nextDir: releaseDirs[i],
+              speed: customGhostSpeed + (level - 1) * 0.10 + i * 0.02,
+              radius: tileSize * 0.4,
+              color: config.color,
+              name: config.name,
+              frightened: 0,
+              homeX: x,
+              homeY: y,
+              spawnX: spawn.x,
+              spawnY: spawn.y,
+              scatterTarget: config.scatterTarget,
+              modeTimer: i * 1.5,
+              mode: 'scatter'
+            });
+          }
+        }
+      }
+    }
+  }
+
+  function buildWorld(){
+    maze = mazeTypeEl.value === 'generated' ? generateMaze(cols, rows) : cloneMaze(classicTemplate);
+    dotsLeft = 0;
+    ghosts = [];
+    player = null;
+    gameTime = 0;
+    coinBornTime = {};
+
+    for(let y=0; y<rows; y++){
+      for(let x=0; x<cols; x++){
+        if(maze[y][x] === '.' || maze[y][x] === 'o'){
+          dotsLeft++;
+          coinBornTime[`${x},${y}`] = 0;
+        }
+      }
+    }
+
+    resetPositionsOnly();
+
+    if(!player){
+      const c = cellCentre(1,1);
+      player = {x:c.x,y:c.y,dir:'right',nextDir:'right',speed:customPlayerSpeed,radius:tileSize*0.42,mouth:0,powerTimer:0,spawn:{x:c.x,y:c.y}};
+    }
+    if(ghosts.length === 0){
+      ghosts = [{x:centreCoord(10),y:centreCoord(10),dir:'left',nextDir:'left',speed:customGhostSpeed,radius:tileSize*0.4,color:'#ff5a5a',frightened:0,homeX:10,homeY:10,spawnX:centreCoord(10),spawnY:centreCoord(10),scatterBias:0}];
+    }
+
+    syncSpeedControls();
+    updateHud();
+    resizeCanvas();
+  }
+
+  function resizeCanvas(){
+    const maxW = Math.min(window.innerWidth - 40, 540, document.querySelector('.app').clientWidth - 36);
+    canvas.style.width = maxW + 'px';
+    canvas.style.height = maxW + 'px';
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  function updateHud(){
+    scoreEl.textContent = score;
+    livesEl.textContent = lives;
+    levelEl.textContent = level;
+    if(score > highScore){
+      highScore = score;
+      localStorage.setItem(STORAGE_KEY, String(highScore));
+    }
+    highEl.textContent = highScore;
+  }
+
+  function opposite(dir){
+    return ({left:'right', right:'left', up:'down', down:'up'})[dir];
+  }
+
+  function isNearTileCentre(entity, tolerance=3.5){
+    const cx = centreCoord(tileIndexFromCentre(entity.x));
+    const cy = centreCoord(tileIndexFromCentre(entity.y));
+    return Math.abs(entity.x - cx) < tolerance && Math.abs(entity.y - cy) < tolerance;
+  }
+
+  function snapToAxis(entity, dir){
+    const tx = tileIndexFromCentre(entity.x);
+    const ty = tileIndexFromCentre(entity.y);
+    if(dir === 'left' || dir === 'right') entity.y = centreCoord(ty);
+    else entity.x = centreCoord(tx);
+  }
+
+  function canMove(entity, dir, distance = entity.speed){
+    const v = dirVec[dir];
+    const nx = entity.x + v.x * distance;
+    const ny = entity.y + v.y * distance;
+    const r = entity.radius - 2;
+    const checks = [
+      [nx-r, ny-r], [nx+r, ny-r], [nx-r, ny+r], [nx+r, ny+r]
+    ];
+    return checks.every(([px, py]) => tileAtPixel(px, py) !== '#');
+  }
+
+  function movementStep(speed, dt){
+    return speed * dt * 60;
+  }
+
+  function moveByDirection(entity, dir, amount){
+    entity.x += dirVec[dir].x * amount;
+    entity.y += dirVec[dir].y * amount;
+  }
+
+  function moveEntity(entity, dt){
+    const step = movementStep(entity.speed, dt);
+    if(isNearTileCentre(entity, Math.max(4, step + 1)) && canMove(entity, entity.nextDir, step + 1)){
+      entity.dir = entity.nextDir;
+      snapToAxis(entity, entity.dir);
+    }
+
+    if(canMove(entity, entity.dir, step)){
+      moveByDirection(entity, entity.dir, step);
+    } else if(canMove(entity, entity.nextDir, step)){
+      entity.dir = entity.nextDir;
+      snapToAxis(entity, entity.dir);
+      moveByDirection(entity, entity.dir, step);
+    } else {
+      snapToAxis(entity, entity.dir);
+    }
+
+    wrapTunnel(entity);
+  }
+
+  function wrapTunnel(entity){
+    if(entity.x < -tileSize/2) entity.x = cols * tileSize - tileSize/2;
+    if(entity.x > cols * tileSize + tileSize/2) entity.x = tileSize/2;
+  }
+
+  function getCoinValue(cell, tx, ty){
+    const born = coinBornTime[`${tx},${ty}`] ?? gameTime;
+    const age = gameTime - born;
+
+    if(cell === '.'){
+      return Math.min(10 + Math.floor(age * 2), 40);
+    }
+
+    if(cell === 'o'){
+      return Math.min(50 + Math.floor(age * 5), 120);
+    }
+
+    return 0;
+  }
+
+  function eatDots(){
+    const tx = Math.floor(player.x / tileSize);
+    const ty = Math.floor(player.y / tileSize);
+    const cell = maze[ty]?.[tx];
+    if(cell === '.'){
+      const value = getCoinValue(cell, tx, ty);
+      maze[ty][tx] = ' ';
+      delete coinBornTime[`${tx},${ty}`];
+      dotsLeft--;
+      score += value;
+      beep(660, 0.04, 0.03);
+      updateHud();
+    } else if(cell === 'o'){
+      const value = getCoinValue(cell, tx, ty);
+      maze[ty][tx] = ' ';
+      delete coinBornTime[`${tx},${ty}`];
+      dotsLeft--;
+      score += value;
+      player.powerTimer = 7;
+      ghosts.forEach(g => g.frightened = 7);
+      beep(240, 0.12, 0.05);
+      updateHud();
+    }
+  }
+
+  function projectPlayer(stepsAhead){
+    const v = dirVec[player.dir] || {x:0, y:0};
+    return {
+      x: player.x + v.x * tileSize * stepsAhead,
+      y: player.y + v.y * tileSize * stepsAhead
+    };
+  }
+
+  function getGhostTarget(ghost){
+    if(ghost.frightened > 0){
+      return {x: centreCoord(ghost.scatterTarget.x), y: centreCoord(ghost.scatterTarget.y), flee: true};
+    }
+
+    const cycle = (ghost.modeTimer % 14) < 4 ? 'scatter' : 'chase';
+    ghost.mode = cycle;
+
+    if(cycle === 'scatter'){
+      return {x: centreCoord(ghost.scatterTarget.x), y: centreCoord(ghost.scatterTarget.y), flee: false};
+    }
+
+    if(ghost.name === 'hunter'){
+      return {x: player.x, y: player.y, flee: false};
+    }
+    if(ghost.name === 'scout'){
+      return {...projectPlayer(4), flee: false};
+    }
+    if(ghost.name === 'shadow'){
+      const hunter = ghosts.find(g => g.name === 'hunter') || ghost;
+      const pivot = projectPlayer(2);
+      return {
+        x: pivot.x + (pivot.x - hunter.x),
+        y: pivot.y + (pivot.y - hunter.y),
+        flee: false
+      };
+    }
+    if(ghost.name === 'wanderer'){
+      const dist = Math.hypot(player.x - ghost.x, player.y - ghost.y);
+      if(dist > tileSize * 6) return {x: player.x, y: player.y, flee: false};
+      return {x: centreCoord(ghost.scatterTarget.x), y: centreCoord(ghost.scatterTarget.y), flee: false};
+    }
+    return {x: player.x, y: player.y, flee: false};
+  }
+
+  function availableGhostDirs(ghost){
+    const dirs = ['up','left','down','right'];
+    return dirs.filter(dir => {
+      const tx = tileIndexFromCentre(ghost.x) + dirVec[dir].x;
+      const ty = tileIndexFromCentre(ghost.y) + dirVec[dir].y;
+      return !isWallCell(tx, ty);
+    });
+  }
+
+  function distanceToNextTileCentre(ghost){
+    const tx = tileIndexFromCentre(ghost.x);
+    const ty = tileIndexFromCentre(ghost.y);
+    let nextTx = tx;
+    let nextTy = ty;
+    if(ghost.dir === 'left') nextTx = tx - 1;
+    else if(ghost.dir === 'right') nextTx = tx + 1;
+    else if(ghost.dir === 'up') nextTy = ty - 1;
+    else if(ghost.dir === 'down') nextTy = ty + 1;
+    const targetX = centreCoord(nextTx);
+    const targetY = centreCoord(nextTy);
+    return Math.hypot(targetX - ghost.x, targetY - ghost.y);
+  }
+
+  function moveGhostTowardsNextCentre(ghost, distance){
+    const tx = tileIndexFromCentre(ghost.x);
+    const ty = tileIndexFromCentre(ghost.y);
+    let nextTx = tx;
+    let nextTy = ty;
+    if(ghost.dir === 'left') nextTx = tx - 1;
+    else if(ghost.dir === 'right') nextTx = tx + 1;
+    else if(ghost.dir === 'up') nextTy = ty - 1;
+    else if(ghost.dir === 'down') nextTy = ty + 1;
+
+    const targetX = centreCoord(nextTx);
+    const targetY = centreCoord(nextTy);
+    const dx = targetX - ghost.x;
+    const dy = targetY - ghost.y;
+    const dist = Math.hypot(dx, dy);
+
+    if(dist < 0.001) return distance;
+
+    const move = Math.min(distance, dist);
+    ghost.x += (dx / dist) * move;
+    ghost.y += (dy / dist) * move;
+
+    if(move >= dist - 0.001){
+      ghost.x = targetX;
+      ghost.y = targetY;
+    }
+
+    return distance - move;
+  }
+
+  function chooseGhostDir(ghost){
+    const dirs = availableGhostDirs(ghost);
+    if(!dirs.length) return opposite(ghost.dir);
+
+    const nonReverse = dirs.filter(dir => dir !== opposite(ghost.dir));
+    const options = nonReverse.length ? nonReverse : dirs;
+    const target = getGhostTarget(ghost);
+    let bestDir = options[0];
+    let bestScore = target.flee ? -Infinity : Infinity;
+
+    for(const dir of options){
+      const tx = tileIndexFromCentre(ghost.x) + dirVec[dir].x;
+      const ty = tileIndexFromCentre(ghost.y) + dirVec[dir].y;
+      const px = centreCoord(tx);
+      const py = centreCoord(ty);
+      const score = Math.hypot(target.x - px, target.y - py);
+      if(target.flee ? score > bestScore : score < bestScore){
+        bestScore = score;
+        bestDir = dir;
+      }
+    }
+    return bestDir;
+  }
+
+  function updateGhosts(dt){
+    ghosts.forEach(g => {
+      if(g.startDelay > 0){
+        g.startDelay = Math.max(0, g.startDelay - dt);
+        return;
+      }
+
+      g.modeTimer += dt;
+      if(g.frightened > 0) g.frightened = Math.max(0, g.frightened - dt);
+
+      let remaining = movementStep(g.speed, dt);
+      let guard = 0;
+
+      while(remaining > 0.001 && guard < 12){
+        guard++;
+
+        if(isNearTileCentre(g, 0.8)){
+          g.x = centreCoord(tileIndexFromCentre(g.x));
+          g.y = centreCoord(tileIndexFromCentre(g.y));
+
+          const dirs = availableGhostDirs(g);
+          if(!dirs.length) break;
+
+          if(!dirs.includes(g.dir)){
+            g.dir = chooseGhostDir(g);
+          } else {
+            const forwardOnly = dirs.length === 2 && dirs.includes(g.dir) && dirs.includes(opposite(g.dir));
+            if(!forwardOnly){
+              g.dir = chooseGhostDir(g);
+            }
+          }
+          g.nextDir = g.dir;
+          snapToAxis(g, g.dir);
+        }
+
+        const before = remaining;
+        remaining = moveGhostTowardsNextCentre(g, remaining);
+        wrapTunnel(g);
+
+        if(Math.abs(before - remaining) < 0.0001){
+          break;
+        }
+      }
+    });
+  }
+
+  function checkCollisions(){
+    for(const g of ghosts){
+      const d = Math.hypot(player.x - g.x, player.y - g.y);
+      if(d < player.radius + g.radius - 2){
+        if(g.frightened > 0){
+          score += 200;
+          g.x = g.spawnX ?? centreCoord(g.homeX);
+          g.y = g.spawnY ?? centreCoord(g.homeY);
+          g.frightened = 0;
+          g.startDelay = 0.8;
+          g.modeTimer = 0;
+          g.dir = 'left';
+          g.nextDir = 'left';
+          snapToAxis(g, g.dir);
+          beep(160, 0.18, 0.06);
+          updateHud();
+        } else {
+          lives--;
+          beep(110, 0.35, 0.07);
+          updateHud();
+          if(lives <= 0){
+            gameOver = true;
+          } else {
+            resetPositionsOnly();
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  function nextLevel(){
+    level++;
+    score += 100;
+    beep(820, 0.2, 0.05);
+    buildWorld();
+  }
+
+  function drawMaze(){
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for(let y=0; y<rows; y++){
+      for(let x=0; x<cols; x++){
+        const cell = maze[y][x];
+        const px = x * tileSize;
+        const py = y * tileSize;
+        if(cell === '#'){
+          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--wall');
+          roundRect(ctx, px + 1, py + 1, tileSize - 2, tileSize - 2, 5, true);
+        } else if(cell === '.'){
+          const cx = px + tileSize/2;
+          const cy = py + tileSize/2;
+          const born = coinBornTime[`${x},${y}`] ?? gameTime;
+          const age = gameTime - born;
+          const r = Math.min(4.2 + age * 0.08, 6.5);
+          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dot');
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.35)';
+          ctx.beginPath();
+          ctx.arc(cx - r * 0.28, cy - r * 0.28, r * 0.25, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(120,72,0,0.45)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.stroke();
+        } else if(cell === 'o'){
+          const cx = px + tileSize/2;
+          const cy = py + tileSize/2;
+          const born = coinBornTime[`${x},${y}`] ?? gameTime;
+          const age = gameTime - born;
+          const r = Math.min(5.2 + age * 0.10, 8.0);
+          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--power');
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,215,120,0.35)';
+          ctx.beginPath();
+          ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  function drawPlayer(){
+    const baseColour = getComputedStyle(document.documentElement).getPropertyValue('--player').trim() || '#ff6a00';
+    const ring = ctx.createRadialGradient(
+      player.x - player.radius * 0.35,
+      player.y - player.radius * 0.35,
+      player.radius * 0.15,
+      player.x,
+      player.y,
+      player.radius
+    );
+    ring.addColorStop(0, '#ffd199');
+    ring.addColorStop(0.55, baseColour);
+    ring.addColorStop(1, '#b84700');
+
+    ctx.fillStyle = ring;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = Math.max(2, player.radius * 0.18);
+    ctx.lineCap = 'round';
+    const spin = player.mouth * 0.9;
+    ctx.beginPath();
+    ctx.moveTo(player.x, player.y);
+    ctx.lineTo(
+      player.x + Math.cos(spin) * player.radius * 0.82,
+      player.y + Math.sin(spin) * player.radius * 0.82
+    );
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, Math.max(2.2, player.radius * 0.14), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawGhost(g){
+    const r = g.radius;
+    const bodyColour = g.frightened > 0 ? '#4a7dff' : g.color;
+
+    ctx.fillStyle = bodyColour;
+    ctx.beginPath();
+    ctx.arc(g.x, g.y, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(g.x, g.y, r * 0.72, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(g.x, g.y - r - 1);
+    ctx.lineTo(g.x, g.y - r + 1);
+    ctx.stroke();
+
+    ctx.fillStyle = '#d8ecff';
+    ctx.beginPath();
+    ctx.arc(g.x - r/3, g.y - 1, r/4, 0, Math.PI * 2);
+    ctx.arc(g.x + r/3, g.y - 1, r/4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#112';
+    ctx.beginPath();
+    ctx.arc(g.x - r/3 + dirVec[g.dir].x * 1.3, g.y - 1 + dirVec[g.dir].y * 1.3, r/8, 0, Math.PI * 2);
+    ctx.arc(g.x + r/3 + dirVec[g.dir].x * 1.3, g.y - 1 + dirVec[g.dir].y * 1.3, r/8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawOverlay(g){
+    const r = g.radius;
+    ctx.fillStyle = g.frightened > 0 ? '#4a7dff' : g.color;
+    ctx.beginPath();
+    ctx.arc(g.x, g.y - 2, r, Math.PI, 0);
+    ctx.lineTo(g.x + r, g.y + r);
+    for(let i=0;i<4;i++){
+      const wx = g.x + r - i * (r * 2 / 3);
+      const wy = g.y + r - ((i % 2) ? 0 : 6);
+      ctx.lineTo(wx, wy);
+    }
+    ctx.lineTo(g.x - r, g.y + r);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(g.x - r/3, g.y - 2, r/4, 0, Math.PI * 2);
+    ctx.arc(g.x + r/3, g.y - 2, r/4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#112';
+    ctx.beginPath();
+    ctx.arc(g.x - r/3 + dirVec[g.dir].x * 1.3, g.y - 2 + dirVec[g.dir].y * 1.3, r/8, 0, Math.PI * 2);
+    ctx.arc(g.x + r/3 + dirVec[g.dir].x * 1.3, g.y - 2 + dirVec[g.dir].y * 1.3, r/8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawOverlay(text, subtext){
+    ctx.fillStyle = 'rgba(4,8,18,0.62)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 28px Arial';
+    ctx.fillText(text, canvas.width/2, canvas.height/2 - 10);
+    ctx.font = '16px Arial';
+    ctx.fillStyle = '#d7def6';
+    ctx.fillText(subtext, canvas.width/2, canvas.height/2 + 22);
+  }
+
+  function roundRect(ctx, x, y, w, h, r, fill){
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+    if(fill) ctx.fill();
+  }
+
+  function loop(ts){
+    const dt = Math.min((ts - lastTime) / 1000 || 0.016, 0.04);
+    lastTime = ts;
+
+    drawMaze();
+
+    if(!paused && !gameOver){
+      gameTime += dt;
+      player.mouth += dt * 12;
+      if(player.powerTimer > 0) player.powerTimer = Math.max(0, player.powerTimer - dt);
+      moveEntity(player, dt);
+      eatDots();
+      updateGhosts(dt);
+      checkCollisions();
+      if(dotsLeft <= 0) nextLevel();
+    }
+
+    drawPlayer();
+    ghosts.forEach(drawGhost);
+
+    if(paused) drawOverlay('Paused', 'Press Pause to continue');
+    if(gameOver) drawOverlay('Game Over', 'Press Start New Game');
+
+    requestAnimationFrame(loop);
+  }
+
+  function startGame(){
+    score = 0;
+    lives = 3;
+    level = 1;
+    gameOver = false;
+    paused = false;
+    pauseBtn.textContent = 'Pause';
+    syncSpeedControls(true);
+    buildWorld();
+    updateHud();
+  }
+
+  document.addEventListener('keydown', e => {
+    const map = {ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'};
+    if(map[e.key]){
+      player.nextDir = map[e.key];
+      e.preventDefault();
+    }
+  });
+
+  difficultyEl.addEventListener('change', () => syncSpeedControls(true));
+  playerSpeedSlider.addEventListener('input', () => {
+    customPlayerSpeed = Number(playerSpeedSlider.value);
+    syncSpeedControls();
+  });
+  ghostSpeedSlider.addEventListener('input', () => {
+    customGhostSpeed = Number(ghostSpeedSlider.value);
+    syncSpeedControls();
+  });
+
+  startBtn.addEventListener('click', startGame);
+  resetBtn.addEventListener('click', startGame);
+  pauseBtn.addEventListener('click', () => {
+    paused = !paused;
+    pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+  });
+  muteBtn.addEventListener('click', () => {
+    soundOn = !soundOn;
+    muteBtn.textContent = 'Sound: ' + (soundOn ? 'On' : 'Off');
+  });
+
+  let audioCtx = null;
+  function beep(freq=440, dur=0.08, gain=0.03){
+    if(!soundOn) return;
+    try{
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'square';
+      o.frequency.value = freq;
+      g.gain.value = gain;
+      o.connect(g).connect(audioCtx.destination);
+      o.start();
+      g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+      o.stop(audioCtx.currentTime + dur);
+    } catch(err){}
+  }
+
+  function setDirectionFromVector(dx, dy){
+    if(Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    if(Math.abs(dx) > Math.abs(dy)) player.nextDir = dx > 0 ? 'right' : 'left';
+    else player.nextDir = dy > 0 ? 'down' : 'up';
+  }
+
+  function setupJoystick(){
+    let active = false;
+    const maxR = 46;
+
+    function updateKnob(dx, dy){
+      const dist = Math.hypot(dx, dy);
+      let x = dx, y = dy;
+      if(dist > maxR){
+        x = dx / dist * maxR;
+        y = dy / dist * maxR;
+      }
+      knob.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+      setDirectionFromVector(x, y);
+    }
+
+    function resetKnob(){
+      knob.style.transform = 'translate(-50%,-50%)';
+    }
+
+    function pointFromEvent(e){
+      const rect = joystick.getBoundingClientRect();
+      const p = e.touches ? e.touches[0] : e;
+      return {
+        x: p.clientX - rect.left - rect.width / 2,
+        y: p.clientY - rect.top - rect.height / 2
+      };
+    }
+
+    function start(e){
+      active = true;
+      const p = pointFromEvent(e);
+      updateKnob(p.x, p.y);
+      e.preventDefault();
+    }
+    function move(e){
+      if(!active) return;
+      const p = pointFromEvent(e);
+      updateKnob(p.x, p.y);
+      e.preventDefault();
+    }
+    function end(){
+      active = false;
+      resetKnob();
+    }
+
+    joystick.addEventListener('touchstart', start, {passive:false});
+    joystick.addEventListener('touchmove', move, {passive:false});
+    joystick.addEventListener('touchend', end);
+    joystick.addEventListener('touchcancel', end);
+    joystick.addEventListener('mousedown', start);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+  }
+
+  syncSpeedControls(true);
+  setupJoystick();
+  startGame();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
