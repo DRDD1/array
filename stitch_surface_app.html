@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Surface Stitching Tool</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --border: #d9dee5;
+      --text: #1f2937;
+      --muted: #667085;
+      --accent: #2563eb;
+      --danger: #b42318;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .app {
+      max-width: 1700px;
+      margin: 0 auto;
+      padding: 14px;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    button, input, label.checkbox {
+      font-size: 14px;
+    }
+    button {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 9px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--text);
+    }
+    button:hover { border-color: var(--accent); }
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .spacer { flex: 1; }
+    .row {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .group {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      min-width: 330px;
+      flex: 1 1 430px;
+    }
+    .group h3 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+    }
+    .grid2 {
+      display: grid;
+      grid-template-columns: max-content minmax(110px, 1fr);
+      gap: 10px 12px;
+      align-items: centre;
+    }
+    .grid2 label { white-space: nowrap; }
+    input[type="number"] {
+      width: 100%;
+      padding: 7px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+    label.checkbox {
+      display: flex;
+      align-items: centre;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .status-line {
+      padding: 4px 0;
+      color: var(--text);
+    }
+    .status-line.muted { color: var(--muted); }
+    .plots {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .plot-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .plot {
+      width: 100%;
+      height: 360px;
+    }
+    .log-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    textarea {
+      width: 100%;
+      height: 200px;
+      resize: vertical;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+      background: #fbfcfe;
+      color: #16202a;
+    }
+    .meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+    .error {
+      color: var(--danger);
+      font-weight: 600;
+    }
+    @media (max-width: 1100px) {
+      .plots { grid-template-columns: 1fr; }
+      .plot { height: 340px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="toolbar">
+      <button id="btnLoadA">Load Surface A</button>
+      <button id="btnLoadB">Load Surface B</button>
+      <button id="btnUpdate" class="primary">Update Preview</button>
+      <button id="btnRefine">Refine Locally</button>
+      <button id="btnExport">Export Stitched Preview</button>
+      <button id="btnReset">Reset Shifts</button>
+      <div class="spacer"></div>
+      <div class="meta">3D SURFACE PROFILE STITCHING TOOL: <br>
+      Single-file browser app using Plotly, all processing stays in your browser.<br>
+      (c) D.Deganello, 2026</div>
+      <input id="fileInputA" type="file" accept=".xyz,.txt,.dat,*/*" hidden />
+      <input id="fileInputB" type="file" accept=".xyz,.txt,.dat,*/*" hidden />
+    </div>
+
+    <div class="row">
+      <section class="group">
+        <h3>Alignment Controls</h3>
+        <div class="grid2">
+          <label for="shiftX">Display Shift X (pixels):</label>
+          <input id="shiftX" type="number" step="1" value="0" />
+
+          <label for="shiftY">Display Shift Y (pixels):</label>
+          <input id="shiftY" type="number" step="1" value="0" />
+
+          <label for="manualDz">Manual dz:</label>
+          <input id="manualDz" type="number" step="0.001" value="0" />
+
+          <label for="refineRadius">Refine radius:</label>
+          <input id="refineRadius" type="number" min="1" max="1000" step="1" value="8" />
+
+          <label for="minOverlap">Minimum overlap points:</label>
+          <input id="minOverlap" type="number" min="1" step="1" value="50" />
+        </div>
+        <label class="checkbox">
+          <input id="useAutoDz" type="checkbox" checked />
+          <span>Use automatic dz from overlap</span>
+        </label>
+      </section>
+
+      <section class="group">
+        <h3>Current Status</h3>
+        <div id="statusDisplayShift" class="status-line">Display shift: X = 0 px, Y = 0 px</div>
+        <div id="statusEvalShift" class="status-line">Evaluation shift: X = -, Y = -</div>
+        <div id="statusEvalShiftPhys" class="status-line">Evaluation shift: X = -, Y = - (physical units)</div>
+        <div id="statusDz" class="status-line">dz used: -</div>
+        <div id="statusRms" class="status-line">RMS: -</div>
+        <div id="statusOverlap" class="status-line">Overlap points: -</div>
+      </section>
+    </div>
+
+    <div class="plots">
+      <div class="plot-card"><div id="plotA" class="plot"></div></div>
+      <div class="plot-card"><div id="plotB" class="plot"></div></div>
+      <div class="plot-card"><div id="plotStitched" class="plot"></div></div>
+      <div class="plot-card"><div id="plotResidual" class="plot"></div></div>
+    </div>
+
+    <div class="log-card">
+      <textarea id="logBox" readonly></textarea>
+    </div>
+<details style="margin-top:20px;">
+<summary style="font-size:18px; font-weight:bold; cursor:pointer;">
+User Guide and Input File Format
+</summary>
+<div id="userGuide" style="margin-top:20px; padding:15px; border-top:2px solid #ccc; font-family:Arial; font-size:14px; line-height:1.5">
+
+<h2>Surface Stitching Tool – User Guide</h2>
+
+<h3>Purpose</h3>
+<p>
+This tool allows two regular-grid 3D surface measurements to be aligned and stitched together.
+The surfaces are loaded from XYZ files and aligned using a lateral shift (X,Y) and an optional
+vertical offset (dz). The overlap region is used to estimate the best vertical alignment and
+to compute an RMS residual error.
+</p>
+
+<h3>Basic Workflow</h3>
+<ol>
+<li>Load <b>Surface A</b>.</li>
+<li>Load <b>Surface B</b>.</li>
+<li>Use <b>Display Shift X</b> and <b>Display Shift Y</b> to move Surface B relative to Surface A.</li>
+<li>Enable <b>Automatic dz</b> to estimate vertical alignment from the overlap region.</li>
+<li>Click <b>Refine Locally</b> to automatically search nearby shifts and minimise RMS error.</li>
+<li>Inspect the stitched surface and the residual map.</li>
+<li>Use <b>Export</b> to save stitched surface and residual maps as XYZ files.</li>
+</ol>
+
+<h3>Plots</h3>
+<ul>
+<li><b>Surface A</b> – original surface A</li>
+<li><b>Surface B</b> – original surface B</li>
+<li><b>Stitched Preview</b> – combined surface using current alignment</li>
+<li><b>Residual Map</b> – difference between A and B in the overlap region</li>
+</ul>
+
+<h3>Input File Format</h3>
+
+<p>
+The tool expects a regular-grid XYZ file with three columns:
+</p>
+
+<pre>
+X   Y   Z
+</pre>
+
+<p>
+Each row represents a measured point on the surface. The grid spacing must be constant
+in both X and Y directions. Comment lines starting with <b>#</b> are ignored.
+</p>
+
+<h3>Example Input File (.xyz)</h3>
+
+<pre>
+# Regular-grid XYZ test surfaces for stitching
+# spacing_x = 0.1
+# spacing_y = 0.1
+# Each file starts at X=0, Y=0
+# Surface B contains a small Z offset / tilt / noise relative to A in the overlap region
+
+0.000000 0.000000 0.002518
+0.100000 0.000000 -0.000459
+0.200000 0.000000 0.009323
+0.300000 0.000000 0.012820
+0.400000 0.000000 0.003928
+0.500000 0.000000 0.008905
+...
+</pre>
+
+<h3>Important Assumptions</h3>
+
+<ul>
+<li>Both surfaces must be sampled on a regular grid.</li>
+<li>Grid spacing should be identical for Surface A and Surface B.</li>
+<li>The tool reconstructs the grid automatically from X and Y coordinates.</li>
+<li>The stitched surface uses the physical coordinate system of Surface A.</li>
+</ul>
+
+</div>
+
+
+</details>
+
+
+  </div>
+
+  <script>
+    const state = {
+      A: null,
+      B: null,
+      lastComputed: null,
+    };
+
+    const els = {
+      btnLoadA: document.getElementById('btnLoadA'),
+      btnLoadB: document.getElementById('btnLoadB'),
+      btnUpdate: document.getElementById('btnUpdate'),
+      btnRefine: document.getElementById('btnRefine'),
+      btnExport: document.getElementById('btnExport'),
+      btnReset: document.getElementById('btnReset'),
+      fileInputA: document.getElementById('fileInputA'),
+      fileInputB: document.getElementById('fileInputB'),
+      shiftX: document.getElementById('shiftX'),
+      shiftY: document.getElementById('shiftY'),
+      manualDz: document.getElementById('manualDz'),
+      useAutoDz: document.getElementById('useAutoDz'),
+      refineRadius: document.getElementById('refineRadius'),
+      minOverlap: document.getElementById('minOverlap'),
+      logBox: document.getElementById('logBox'),
+      statusDisplayShift: document.getElementById('statusDisplayShift'),
+      statusEvalShift: document.getElementById('statusEvalShift'),
+      statusEvalShiftPhys: document.getElementById('statusEvalShiftPhys'),
+      statusDz: document.getElementById('statusDz'),
+      statusRms: document.getElementById('statusRms'),
+      statusOverlap: document.getElementById('statusOverlap'),
+      plotA: document.getElementById('plotA'),
+      plotB: document.getElementById('plotB'),
+      plotStitched: document.getElementById('plotStitched'),
+      plotResidual: document.getElementById('plotResidual'),
+    };
+
+    function log(text = '') {
+      const stamp = new Date().toLocaleTimeString();
+      els.logBox.value += `[${stamp}] ${text}\n`;
+      els.logBox.scrollTop = els.logBox.scrollHeight;
+    }
+
+    function round12(x) {
+      return Number(Number(x).toFixed(12));
+    }
+
+    function median(values) {
+      if (!values.length) return NaN;
+      const arr = values.slice().sort((a, b) => a - b);
+      const m = Math.floor(arr.length / 2);
+      return arr.length % 2 ? arr[m] : 0.5 * (arr[m - 1] + arr[m]);
+    }
+
+    function nanMinMax2D(arr2d) {
+      let min = Infinity;
+      let max = -Infinity;
+      for (const row of arr2d) {
+        for (const v of row) {
+          if (Number.isFinite(v)) {
+            if (v < min) min = v;
+            if (v > max) max = v;
+          }
+        }
+      }
+      if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+      return { min, max };
+    }
+
+    function flattenFinite(arr2d) {
+      const out = [];
+      for (const row of arr2d) {
+        for (const v of row) {
+          if (Number.isFinite(v)) out.push(v);
+        }
+      }
+      return out;
+    }
+
+    function reverseForDisplay(arr2d) {
+      return arr2d.slice().reverse().map(row => row.slice());
+    }
+
+    function create2D(h, w, fill = NaN) {
+      return Array.from({ length: h }, () => Array.from({ length: w }, () => fill));
+    }
+
+    function parseXYZRegularGrid(text, filename) {
+      const lines = text.split(/\r?\n/);
+      const rows = [];
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line || line.startsWith('#')) continue;
+        const parts = line.split(/\s+/);
+        if (parts.length < 3) continue;
+        const x = Number(parts[0]);
+        const y = Number(parts[1]);
+        const z = Number(parts[2]);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+        rows.push([x, y, z]);
+      }
+
+      if (!rows.length) {
+        throw new Error(`${filename} contains no readable X Y Z rows.`);
+      }
+
+      const xVals = rows.map(r => round12(r[0]));
+      const yVals = rows.map(r => round12(r[1]));
+      const xUnique = [...new Set(xVals)].sort((a, b) => a - b);
+      const yUnique = [...new Set(yVals)].sort((a, b) => a - b);
+      const nx = xUnique.length;
+      const ny = yUnique.length;
+
+      if (nx * ny !== rows.length) {
+        throw new Error(
+          `${filename}: grid reconstruction failed. Unique X = ${nx}, unique Y = ${ny}, nx*ny = ${nx * ny}, rows = ${rows.length}`
+        );
+      }
+
+      const xIndex = new Map(xUnique.map((v, i) => [v, i]));
+      const yIndex = new Map(yUnique.map((v, i) => [v, i]));
+      const Z = create2D(ny, nx, NaN);
+
+      for (const [x, y, z] of rows) {
+        const ix = xIndex.get(round12(x));
+        const iy = yIndex.get(round12(y));
+        Z[iy][ix] = z;
+      }
+
+      let nMissing = 0;
+      for (const row of Z) {
+        for (const v of row) {
+          if (!Number.isFinite(v)) nMissing += 1;
+        }
+      }
+
+      const dx = nx > 1 ? median(xUnique.slice(1).map((v, i) => v - xUnique[i])) : 1.0;
+      const dy = ny > 1 ? median(yUnique.slice(1).map((v, i) => v - yUnique[i])) : 1.0;
+
+      return {
+        filename,
+        nx,
+        ny,
+        dx,
+        dy,
+        x_min: xUnique[0],
+        x_max: xUnique[xUnique.length - 1],
+        y_min: yUnique[0],
+        y_max: yUnique[yUnique.length - 1],
+        n_rows: rows.length,
+        n_missing: nMissing,
+        Z,
+      };
+    }
+
+    function getOverlapSlices(shapeA, shapeB, shiftX, shiftY) {
+      const [hA, wA] = shapeA;
+      const [hB, wB] = shapeB;
+
+      const ax0 = Math.max(0, shiftX);
+      const ay0 = Math.max(0, shiftY);
+      const ax1 = Math.min(wA, shiftX + wB);
+      const ay1 = Math.min(hA, shiftY + hB);
+
+      if (ax1 <= ax0 || ay1 <= ay0) return null;
+
+      const bx0 = Math.max(0, -shiftX);
+      const by0 = Math.max(0, -shiftY);
+      const bx1 = bx0 + (ax1 - ax0);
+      const by1 = by0 + (ay1 - ay0);
+
+      return {
+        A: { y0: ay0, y1: ay1, x0: ax0, x1: ax1 },
+        B: { y0: by0, y1: by1, x0: bx0, x1: bx1 },
+      };
+    }
+
+    function evaluateShiftFast(ZA, ZB, shiftX, shiftY) {
+      const slices = getOverlapSlices([ZA.length, ZA[0].length], [ZB.length, ZB[0].length], shiftX, shiftY);
+      if (!slices) {
+        return { valid: false, rms: Infinity, dz_auto: null, n_overlap: 0 };
+      }
+
+      const diffs = [];
+      for (let ay = slices.A.y0, by = slices.B.y0; ay < slices.A.y1; ay += 1, by += 1) {
+        for (let ax = slices.A.x0, bx = slices.B.x0; ax < slices.A.x1; ax += 1, bx += 1) {
+          const a = ZA[ay][ax];
+          const b = ZB[by][bx];
+          if (Number.isFinite(a) && Number.isFinite(b)) {
+            diffs.push(a - b);
+          }
+        }
+      }
+
+      const n = diffs.length;
+      if (n < 20) {
+        return { valid: false, rms: Infinity, dz_auto: null, n_overlap: n };
+      }
+
+      const dzAuto = median(diffs);
+      let sumSq = 0;
+      for (const d of diffs) {
+        const r = d - dzAuto;
+        sumSq += r * r;
+      }
+      const rms = Math.sqrt(sumSq / n);
+      return { valid: true, rms, dz_auto: dzAuto, n_overlap: n };
+    }
+
+    function refineLocal(ZA, ZB, ix0, iy0, radius = 8, minOverlap = 20) {
+      let best = null;
+      let bestRms = Infinity;
+      let checked = 0;
+
+      for (let iy = iy0 - radius; iy <= iy0 + radius; iy += 1) {
+        for (let ix = ix0 - radius; ix <= ix0 + radius; ix += 1) {
+          checked += 1;
+          const result = evaluateShiftFast(ZA, ZB, ix, iy);
+          if (!result.valid) continue;
+          if (result.n_overlap < minOverlap) continue;
+          if (result.rms < bestRms) {
+            bestRms = result.rms;
+            best = {
+              shift_x: ix,
+              shift_y: iy,
+              dz_auto: result.dz_auto,
+              rms: result.rms,
+              n_overlap: result.n_overlap,
+              checked,
+            };
+          }
+        }
+      }
+      return { best, checked };
+    }
+
+    function buildCombinedCanvases(ZA, ZB, displayShiftX, displayShiftY, dzUsed) {
+      const hA = ZA.length, wA = ZA[0].length;
+      const hB = ZB.length, wB = ZB[0].length;
+
+      const canvasH = Math.max(hA, hB);
+      const canvasW = wA + wB;
+
+      const canvasA = create2D(canvasH, canvasW, NaN);
+      const canvasB = create2D(canvasH, canvasW, NaN);
+
+      for (let y = 0; y < hA; y += 1) {
+        for (let x = 0; x < wA; x += 1) {
+          canvasA[y][x] = ZA[y][x];
+        }
+      }
+
+      const bx0 = wA + displayShiftX;
+      const by0 = displayShiftY;
+      const bx1 = bx0 + wB;
+      const by1 = by0 + hB;
+
+      const dstX0 = Math.max(0, bx0);
+      const dstY0 = Math.max(0, by0);
+      const dstX1 = Math.min(canvasW, bx1);
+      const dstY1 = Math.min(canvasH, by1);
+
+      if (dstX1 > dstX0 && dstY1 > dstY0) {
+        const srcX0 = dstX0 - bx0;
+        const srcY0 = dstY0 - by0;
+        for (let y = dstY0; y < dstY1; y += 1) {
+          for (let x = dstX0; x < dstX1; x += 1) {
+            const sy = srcY0 + (y - dstY0);
+            const sx = srcX0 + (x - dstX0);
+            const v = ZB[sy][sx];
+            canvasB[y][x] = Number.isFinite(v) ? v + dzUsed : NaN;
+          }
+        }
+      }
+
+      const stitched = create2D(canvasH, canvasW, NaN);
+      const residual = create2D(canvasH, canvasW, NaN);
+
+      for (let y = 0; y < canvasH; y += 1) {
+        for (let x = 0; x < canvasW; x += 1) {
+          const a = canvasA[y][x];
+          const b = canvasB[y][x];
+          const hasA = Number.isFinite(a);
+          const hasB = Number.isFinite(b);
+          if (hasA && !hasB) stitched[y][x] = a;
+          else if (!hasA && hasB) stitched[y][x] = b;
+          else if (hasA && hasB) {
+            stitched[y][x] = 0.5 * (a + b);
+            residual[y][x] = a - b;
+          }
+        }
+      }
+
+      return { canvasA, canvasB, stitched, residual };
+    }
+
+    function displayToEvalShift(displayShiftX, displayShiftY) {
+      if (!state.A) return { x: displayShiftX, y: displayShiftY };
+      return { x: state.A.nx + displayShiftX, y: displayShiftY };
+    }
+
+    function evalToDisplayShift(evalShiftX, evalShiftY) {
+      if (!state.A) return { x: evalShiftX, y: evalShiftY };
+      return { x: evalShiftX - state.A.nx, y: evalShiftY };
+    }
+
+    function numValue(el) {
+      return Number(el.value);
+    }
+
+    function setShiftRanges() {
+      if (!state.A || !state.B) return;
+      els.shiftX.min = String(-state.B.nx);
+      els.shiftX.max = String(state.B.nx);
+      els.shiftY.min = String(-state.B.ny);
+      els.shiftY.max = String(Math.max(state.A.ny, state.B.ny));
+      els.shiftX.value = String(-Math.floor(state.B.nx / 2));
+      els.shiftY.value = '0';
+    }
+
+    function updateStatusLabels(displayShiftX, displayShiftY, evalShiftX, evalShiftY, dzUsed, evalResult) {
+      els.statusDisplayShift.textContent = `Display shift: X = ${displayShiftX} px, Y = ${displayShiftY} px`;
+      els.statusEvalShift.textContent = `Evaluation shift: X = ${evalShiftX} px, Y = ${evalShiftY} px`;
+      if (state.A) {
+        const dxPhys = evalShiftX * state.A.dx;
+        const dyPhys = evalShiftY * state.A.dy;
+        els.statusEvalShiftPhys.textContent = `Evaluation shift: X = ${formatNum(dxPhys)}, Y = ${formatNum(dyPhys)} (physical units)`;
+      } else {
+        els.statusEvalShiftPhys.textContent = 'Evaluation shift: X = -, Y = - (physical units)';
+      }
+      els.statusDz.textContent = `dz used: ${Number.isFinite(dzUsed) ? formatNum(dzUsed) : '-'}`;
+      if (evalResult && evalResult.valid) {
+        els.statusRms.textContent = `RMS: ${formatNum(evalResult.rms)}`;
+        els.statusOverlap.textContent = `Overlap points: ${evalResult.n_overlap}`;
+      } else if (evalResult) {
+        els.statusRms.textContent = 'RMS: invalid / insufficient overlap';
+        els.statusOverlap.textContent = `Overlap points: ${evalResult.n_overlap}`;
+      } else {
+        els.statusRms.textContent = 'RMS: -';
+        els.statusOverlap.textContent = 'Overlap points: -';
+      }
+    }
+
+    function formatNum(v) {
+      if (!Number.isFinite(v)) return '-';
+      const abs = Math.abs(v);
+      if ((abs !== 0 && abs < 1e-4) || abs >= 1e4) return v.toExponential(6);
+      return Number(v.toFixed(6)).toString();
+    }
+
+    async function plotHeatmap(target, img, title, opts = {}) {
+      const z = img && img.length ? reverseForDisplay(img) : null;
+      const data = [];
+      if (z && flattenFinite(z).length) {
+        data.push({
+          type: 'heatmap',
+          z,
+          colorscale: opts.colorscale || 'Viridis',
+          zmin: opts.zmin,
+          zmax: opts.zmax,
+          colorbar: { thickness: 12, len: 0.82 },
+          hovertemplate: 'X=%{x}<br>Y=%{y}<br>Z=%{z}<extra></extra>',
+        });
+      } else {
+        data.push({
+          type: 'scatter',
+          x: [0], y: [0],
+          mode: 'text',
+          text: ['No data'],
+          textfont: { size: 18 },
+          hoverinfo: 'skip',
+        });
+      }
+
+      const layout = {
+        title: { text: title, font: { size: 16 } },
+        margin: { l: 55, r: 30, t: 44, b: 48 },
+        paper_bgcolor: '#ffffff',
+        plot_bgcolor: '#ffffff',
+        xaxis: {
+          title: 'X index',
+          constrain: 'domain',
+          zeroline: false,
+        },
+        yaxis: {
+          title: 'Y index',
+          scaleanchor: 'x',
+          scaleratio: 1,
+          zeroline: false,
+        },
+      };
+
+      const config = {
+        responsive: true,
+        displaylogo: false,
+        modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d'],
+        toImageButtonOptions: { format: 'png', filename: title.replace(/\s+/g, '_') },
+      };
+
+      await Plotly.react(target, data, layout, config);
+    }
+
+    async function updatePreview() {
+      if (!state.A && !state.B) return;
+
+      if (state.A) {
+        const mmA = nanMinMax2D(state.A.Z);
+        await plotHeatmap(els.plotA, state.A.Z, 'Surface A', { zmin: mmA.min, zmax: mmA.max });
+      } else {
+        await plotHeatmap(els.plotA, null, 'Surface A');
+      }
+
+      if (state.B) {
+        const mmB = nanMinMax2D(state.B.Z);
+        await plotHeatmap(els.plotB, state.B.Z, 'Surface B', { zmin: mmB.min, zmax: mmB.max });
+      } else {
+        await plotHeatmap(els.plotB, null, 'Surface B');
+      }
+
+      if (!state.A || !state.B) {
+        await plotHeatmap(els.plotStitched, null, 'Stitched / Overlap Preview');
+        await plotHeatmap(els.plotResidual, null, 'Residual Map (A - B)');
+        updateStatusLabels(numValue(els.shiftX), numValue(els.shiftY), '-', '-', NaN, null);
+        return;
+      }
+
+      const ZA = state.A.Z;
+      const ZB = state.B.Z;
+      const displayShiftX = Math.trunc(numValue(els.shiftX));
+      const displayShiftY = Math.trunc(numValue(els.shiftY));
+      const evalShift = displayToEvalShift(displayShiftX, displayShiftY);
+      const evalResult = evaluateShiftFast(ZA, ZB, evalShift.x, evalShift.y);
+      const dzUsed = els.useAutoDz.checked
+        ? (evalResult.dz_auto ?? 0.0)
+        : numValue(els.manualDz);
+
+      const { stitched, residual } = buildCombinedCanvases(ZA, ZB, displayShiftX, displayShiftY, dzUsed);
+
+      const vals = [
+        ...flattenFinite(ZA),
+        ...flattenFinite(ZB),
+        ...flattenFinite(stitched),
+      ];
+      const vmin = vals.length ? Math.min(...vals) : 0.0;
+      const vmax = vals.length ? Math.max(...vals) : 1.0;
+
+      await plotHeatmap(els.plotStitched, stitched, 'Stitched / Overlap Preview', { zmin: vmin, zmax: vmax });
+
+      const rr = flattenFinite(residual);
+      if (rr.length) {
+        let rmax = Math.max(...rr.map(v => Math.abs(v)));
+        if (rmax === 0) rmax = 1e-12;
+        await plotHeatmap(els.plotResidual, residual, 'Residual Map (A - B)', {
+          zmin: -rmax,
+          zmax: rmax,
+          colorscale: 'RdBu',
+        });
+      } else {
+        await plotHeatmap(els.plotResidual, null, 'Residual Map (A - B)');
+      }
+
+      updateStatusLabels(displayShiftX, displayShiftY, evalShift.x, evalShift.y, dzUsed, evalResult);
+      state.lastComputed = {
+        displayShiftX,
+        displayShiftY,
+        evalShiftX: evalShift.x,
+        evalShiftY: evalShift.y,
+        evalResult,
+        dzUsed,
+        stitched,
+        residual,
+      };
+    }
+
+    function logSurfaceInfo(label, info) {
+      log(`Loaded Surface ${label}: ${info.filename}`);
+      log(`  Rows loaded: ${info.n_rows}`);
+      log(`  Grid size: ny = ${info.ny}, nx = ${info.nx}`);
+      log(`  Spacing: dx = ${formatNum(info.dx)}, dy = ${formatNum(info.dy)}`);
+      log(`  X range: ${formatNum(info.x_min)} to ${formatNum(info.x_max)}`);
+      log(`  Y range: ${formatNum(info.y_min)} to ${formatNum(info.y_max)}`);
+      log(`  Missing values after reconstruction: ${info.n_missing}`);
+      log('');
+    }
+
+    async function handleFile(which, file) {
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const parsed = parseXYZRegularGrid(text, file.name);
+        state[which] = parsed;
+        logSurfaceInfo(which, parsed);
+        if (state.A && state.B) setShiftRanges();
+        await updatePreview();
+      } catch (err) {
+        alert(`Load Error\n\n${err.message}`);
+        log(`ERROR loading Surface ${which}: ${err.message}`);
+      }
+    }
+
+    async function refineCurrent() {
+      if (!state.A || !state.B) {
+        alert('Load both Surface A and Surface B first.');
+        return;
+      }
+      const ZA = state.A.Z;
+      const ZB = state.B.Z;
+      const displayShiftX = Math.trunc(numValue(els.shiftX));
+      const displayShiftY = Math.trunc(numValue(els.shiftY));
+      const eval0 = displayToEvalShift(displayShiftX, displayShiftY);
+      const radius = Math.trunc(numValue(els.refineRadius));
+      const minOverlap = Math.trunc(numValue(els.minOverlap));
+
+      log(`Starting local refinement around display X = ${displayShiftX}, display Y = ${displayShiftY}, radius = ${radius} ...`);
+      log(`Equivalent evaluation start: X = ${eval0.x}, Y = ${eval0.y}`);
+
+      setTimeout(async () => {
+        const { best, checked } = refineLocal(ZA, ZB, eval0.x, eval0.y, radius, minOverlap);
+        if (!best) {
+          log(`No valid solution found after checking ${checked} candidate shifts.`);
+          alert('No valid refined solution found.');
+          return;
+        }
+
+        const displayBest = evalToDisplayShift(best.shift_x, best.shift_y);
+        els.shiftX.value = String(displayBest.x);
+        els.shiftY.value = String(displayBest.y);
+        if (!els.useAutoDz.checked) {
+          els.manualDz.value = String(best.dz_auto);
+        }
+
+        log(`Refinement complete. Checked ${checked} candidate shifts.`);
+        log(`  Best shift: display X = ${displayBest.x} px, display Y = ${displayBest.y} px`);
+        log(`  Equivalent evaluation shift: X = ${best.shift_x} px, Y = ${best.shift_y} px`);
+        log(`  Best auto dz: ${formatNum(best.dz_auto)}, RMS = ${formatNum(best.rms)}, overlap = ${best.n_overlap}`);
+        log('');
+        await updatePreview();
+      }, 20);
+    }
+
+    function arrayToXYZ(arr2d, valueHeader, x0 = 0, y0 = 0, dx = 1, dy = 1) {
+      const lines = [valueHeader];
+      for (let y = 0; y < arr2d.length; y += 1) {
+        for (let x = 0; x < arr2d[0].length; x += 1) {
+          const v = arr2d[y][x];
+          if (Number.isFinite(v)) {
+            const xp = x0 + x * dx;
+            const yp = y0 + y * dy;
+            lines.push(`${xp.toFixed(6)} ${yp.toFixed(6)} ${v.toFixed(6)}`);
+          }
+        }
+      }
+      return lines.join('\n');
+    }
+
+    function downloadText(filename, text) {
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function exportPreview() {
+      if (!state.A || !state.B) {
+        alert('Load both surfaces first.');
+        return;
+      }
+      await updatePreview();
+      if (!state.lastComputed) return;
+
+      const base = prompt('Base filename for export:', 'stitched_surface');
+      if (!base) return;
+      const cleanBase = base.replace(/\.[^.]+$/, '');
+
+      const stitchedText = arrayToXYZ(
+        state.lastComputed.stitched,
+        'X Y Z',
+        state.A.x_min,
+        state.A.y_min,
+        state.A.dx,
+        state.A.dy
+      );
+      const residualText = arrayToXYZ(
+        state.lastComputed.residual,
+        'X Y Residual(A-B)',
+        state.A.x_min,
+        state.A.y_min,
+        state.A.dx,
+        state.A.dy
+      );
+
+      let info = '';
+      info += 'Surface stitching result\n\n';
+      info += 'Display shift (pixels)\n';
+      info += `X = ${state.lastComputed.displayShiftX}\n`;
+      info += `Y = ${state.lastComputed.displayShiftY}\n\n`;
+      info += 'Evaluation shift (pixels)\n';
+      info += `X = ${state.lastComputed.evalShiftX}\n`;
+      info += `Y = ${state.lastComputed.evalShiftY}\n\n`;
+      info += 'Evaluation shift (physical units)\n';
+      info += `X = ${state.lastComputed.evalShiftX * state.A.dx}\n`;
+      info += `Y = ${state.lastComputed.evalShiftY * state.A.dy}\n\n`;
+      info += 'Export coordinate system\n';
+      info += 'Stitched and residual XYZ files use Surface A reference coordinates in physical units.\n';
+      info += `X origin = ${state.A.x_min}, dx = ${state.A.dx}\n`;
+      info += `Y origin = ${state.A.y_min}, dy = ${state.A.dy}\n\n`;
+      info += `dz used = ${state.lastComputed.dzUsed}\n`;
+      if (state.lastComputed.evalResult.valid) {
+        info += `RMS residual = ${state.lastComputed.evalResult.rms}\n`;
+        info += `Overlap points = ${state.lastComputed.evalResult.n_overlap}\n`;
+      }
+
+      downloadText(`${cleanBase}_stitched.xyz`, stitchedText);
+      downloadText(`${cleanBase}_residual.xyz`, residualText);
+      downloadText(`${cleanBase}_info.txt`, info);
+
+      log('Exported stitching results:');
+      log(`  stitched surface : ${cleanBase}_stitched.xyz`);
+      log(`  residual map     : ${cleanBase}_residual.xyz`);
+      log(`  alignment info   : ${cleanBase}_info.txt`);
+      log('');
+    }
+
+    function resetShifts() {
+      if (state.A && state.B) {
+        els.shiftX.value = String(-Math.floor(state.B.nx / 2));
+        els.shiftY.value = '0';
+      } else {
+        els.shiftX.value = '0';
+        els.shiftY.value = '0';
+      }
+      els.manualDz.value = '0';
+      log('Shifts reset.');
+      updatePreview();
+    }
+
+    els.btnLoadA.addEventListener('click', () => els.fileInputA.click());
+    els.btnLoadB.addEventListener('click', () => els.fileInputB.click());
+    els.fileInputA.addEventListener('change', e => handleFile('A', e.target.files[0]));
+    els.fileInputB.addEventListener('change', e => handleFile('B', e.target.files[0]));
+    els.btnUpdate.addEventListener('click', updatePreview);
+    els.btnRefine.addEventListener('click', refineCurrent);
+    els.btnExport.addEventListener('click', exportPreview);
+    els.btnReset.addEventListener('click', resetShifts);
+    [els.shiftX, els.shiftY, els.manualDz, els.useAutoDz].forEach(el => el.addEventListener('input', updatePreview));
+    window.addEventListener('resize', () => {
+      ['plotA', 'plotB', 'plotStitched', 'plotResidual'].forEach(id => Plotly.Plots.resize(document.getElementById(id)));
+    });
+
+    (async function init() {
+      log('3D Surface Stitching Tool ready.');
+      log('Load Surface A and Surface B to begin.');
+      await plotHeatmap(els.plotA, null, 'Surface A');
+      await plotHeatmap(els.plotB, null, 'Surface B');
+      await plotHeatmap(els.plotStitched, null, 'Stitched / Overlap Preview');
+      await plotHeatmap(els.plotResidual, null, 'Residual Map (A - B)');
+    })();
+  </script>
+</body>
+</html>
