@@ -1,0 +1,484 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Adhesive Shear-Lag Teaching App, verified teaching model</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root{
+      --bg:#f5f7fb; --panel:#ffffff; --ink:#1f2a36; --muted:#5d6a77; --line:#d7dfe8;
+      --accent:#1f5fa8; --ok:#116d34; --warn:#9b5d00; --bad:#9d1428;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif;line-height:1.5}
+    header{background:#1f5fa8;color:#fff;padding:20px 18px}
+    header h1{margin:0 0 8px;font-size:1.7rem}
+    .wrap{max-width:1120px;margin:0 auto;padding:18px}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:18px;overflow:hidden}
+    .panel h2{margin:0;padding:14px 16px;border-bottom:1px solid var(--line);background:#fbfcfe;font-size:1.06rem}
+    .body{padding:16px}
+    .input-grid{display:grid;grid-template-columns:1.65fr 120px 100px;gap:8px;align-items:center;margin:8px 0}
+    @media (max-width:820px){.input-grid{grid-template-columns:1fr}}
+    input,select,button,textarea{
+      width:100%;padding:9px 10px;border:1px solid #bcc7d3;border-radius:8px;background:#fff;color:var(--ink);font-size:0.95rem
+    }
+    button{border:none;cursor:pointer;background:var(--accent);color:#fff;font-weight:700}
+    button.secondary{background:#eef4fb;color:var(--accent);border:1px solid #c9d8eb}
+    .btn-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+    @media (max-width:820px){.btn-row{grid-template-columns:1fr}}
+    .muted{color:var(--muted);font-size:0.93rem}
+    .section-title{margin:18px 0 8px;font-weight:700;color:var(--accent)}
+    .help-box,.explain{background:#f7fbff;border-left:4px solid var(--accent);padding:10px 12px;margin:10px 0}
+    .formula{font-family:Consolas,Monaco,monospace;background:#f3f6fa;border-radius:8px;padding:10px 12px;margin:10px 0;overflow-x:auto}
+    .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+    .card{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fcfdff}
+    .card .k{font-size:0.86rem;color:var(--muted);margin-bottom:4px}
+    .card .v{font-weight:700;font-size:1.04rem}
+    .status{padding:10px 12px;border-radius:10px;margin-bottom:10px;border:1px solid var(--line)}
+    .ok{background:#ecf8ef;color:var(--ok);border-color:#c1e0cb}
+    .warn{background:#fff7ea;color:var(--warn);border-color:#ecd5af}
+    .bad{background:#fdecef;color:var(--bad);border-color:#efc2cb}
+    .chart{width:100%;height:520px;border:1px solid var(--line);border-radius:12px;background:#fff}
+    textarea{min-height:240px;resize:vertical;font-family:Consolas,Monaco,monospace;white-space:pre}
+    details{border:1px solid var(--line);border-radius:10px;margin-bottom:12px;background:#fff}
+    details summary{cursor:pointer;padding:12px 14px;font-weight:700;background:#fbfcfe}
+    details .detail-body{padding:0 14px 14px}
+    .now-box{background:#fafbfd;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+  </style>
+</head>
+<body>
+<header>
+  <h1>Adhesive Shear-Lag Teaching App, Model 1</h1>
+  <div>Verified teaching version. The plastic substrate strain is imposed and kept uniform in the bonded region. The metal strip is not directly gripped and gains strain only through adhesive shear transfer.</div>
+</header>
+
+<div class="wrap">
+
+  <div class="panel">
+    <h2>1. Model used in this corrected version</h2>
+    <div class="body">
+      <div class="help-box">
+        <strong>What was corrected</strong><br>
+        In the earlier version, the plastic strain inside the bonded region was incorrectly amplified by a stiffness-ratio term. That was wrong for the teaching boundary condition you wanted.<br><br>
+        In this corrected version:
+        <ul>
+          <li>the plastic strain in the bonded region is fixed at the imposed average value</li>
+          <li>the metal strain varies along the bonded strip</li>
+          <li>adhesive shear stress and slip follow from the metal strain solution</li>
+        </ul>
+      </div>
+
+      <div class="formula">Imposed substrate strain: εsub = ΔLs / Ls</div>
+      <div class="formula">Plastic strain in bonded region: εp(x) = εsub</div>
+      <div class="formula">Metal strain: εm(x) = εsub [1 - cosh(λx) / cosh(λL/2)]</div>
+<!-- Old coupled model (kept for reference) <div class="formula">Transfer parameter: λ² = (Ga / ta) [1 / (Em tm) + 1 / (Ep tp)]</div> --!>
+      <div class="formula">Transfer parameter: λ² = (Ga / ta) · [1 / (Em tm)]</div>
+      <div class="formula">Adhesive shear stress from metal equilibrium: τ(x) = Em tm εsub λ sinh(λx) / cosh(λL/2)</div>
+
+      <p class="muted">
+        The charts always use the bonded-strip coordinate only, from <strong>-L/2</strong> to <strong>+L/2</strong>.  
+        So if <strong>L = 80 mm</strong>, the chart x-axis should run from about <strong>-40 mm</strong> to <strong>+40 mm</strong>.
+      </p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>2. Inputs</h2>
+    <div class="body">
+      <div class="section-title">Whole specimen</div>
+      <div class="input-grid"><label for="Ls">Plastic total gripped length, Ls</label><input id="Ls" type="number" value="80" step="0.1"><select id="Ls_unit"><option value="mm">mm</option><option value="m">m</option></select></div>
+      <div class="input-grid"><label for="dLs">Applied extension of plastic, ΔLs</label><input id="dLs" type="number" value="0.8" step="0.01"><select id="dLs_unit"><option value="mm">mm</option><option value="um">µm</option><option value="m">m</option></select></div>
+      <div class="input-grid"><label for="b">Width, b</label><input id="b" type="number" value="10" step="0.1"><select id="b_unit"><option value="mm">mm</option><option value="m">m</option></select></div>
+
+      <div class="section-title">Metal layer</div>
+      <div class="input-grid"><label for="L">Bonded metal-strip length, L</label><input id="L" type="number" value="30" step="0.1"><select id="L_unit"><option value="mm">mm</option><option value="m">m</option></select></div>
+      <div class="input-grid"><label for="tm">Metal thickness, tm</label><input id="tm" type="number" value="20" step="0.1"><select id="tm_unit"><option value="um">µm</option><option value="mm">mm</option><option value="m">m</option></select></div>
+      <div class="input-grid"><label for="Em">Metal Young's modulus, Em</label><input id="Em" type="number" value="110" step="0.1"><select id="Em_unit"><option value="GPa">GPa</option><option value="MPa">MPa</option><option value="Pa">Pa</option></select></div>
+      <div class="input-grid"><label for="sigY">Metal yield stress marker, σy</label><input id="sigY" type="number" value="250" step="1"><select id="sigY_unit"><option value="MPa">MPa</option><option value="GPa">GPa</option><option value="Pa">Pa</option></select></div>
+
+      <div class="section-title">Adhesive layer</div>
+      <div class="input-grid"><label for="ta">Adhesive thickness, ta</label><input id="ta" type="number" value="25" step="0.1"><select id="ta_unit"><option value="um">µm</option><option value="mm">mm</option><option value="m">m</option></select></div>
+      <div class="input-grid"><label for="Ga">Adhesive shear modulus, Ga</label><input id="Ga" type="number" value="400" step="1"><select id="Ga_unit"><option value="MPa">MPa</option><option value="GPa">GPa</option><option value="Pa">Pa</option></select></div>
+      <div class="input-grid"><label for="tauAllow">Adhesive allowable shear marker, τallow</label><input id="tauAllow" type="number" value="15" step="0.1"><select id="tauAllow_unit"><option value="MPa">MPa</option><option value="GPa">GPa</option><option value="Pa">Pa</option></select></div>
+
+      <div class="section-title">Plastic substrate</div>
+      <div class="input-grid"><label for="tp">Plastic thickness, tp</label><input id="tp" type="number" value="125" step="0.1"><select id="tp_unit"><option value="um">µm</option><option value="mm">mm</option><option value="m">m</option></select></div>
+      <div class="input-grid"><label for="Ep">Plastic Young's modulus, Ep</label><input id="Ep" type="number" value="2.5" step="0.1"><select id="Ep_unit"><option value="GPa">GPa</option><option value="MPa">MPa</option><option value="Pa">Pa</option></select></div>
+
+      <div class="section-title">Display</div>
+      <div class="input-grid"><label for="npts">Number of plotting points</label><input id="npts" type="number" value="501" step="2" min="101"><div class="muted">Use 301 to 1001</div></div>
+
+      <div class="btn-row">
+        <button id="runBtn">Run model</button>
+        <button id="exampleBtn" class="secondary">Load teaching example</button>
+        <button id="csvBtn" class="secondary">Export CSV</button>
+      </div>
+      <div class="btn-row">
+        <button id="copyBtn" class="secondary">Copy summary</button>
+        <button id="pngBtn" class="secondary">Download first chart PNG</button>
+        <div id="inputStatus" class="muted" style="display:flex;align-items:center;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>3. Current interpreted geometry</h2>
+    <div class="body">
+      <div id="currentGeometry" class="now-box"></div>
+      <svg id="schematic" viewBox="0 0 980 230"></svg>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>4. Automatic model checks</h2>
+    <div class="body">
+      <div id="statusBox"></div>
+      <div class="summary-grid" id="checkGrid"></div>
+      <div class="explain">
+        These checks are included to help verify that the app behaves sensibly:
+        metal end strain should be near zero, centre adhesive shear should be near zero, and the plastic strain should equal the imposed substrate strain throughout the bonded region.
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>5. Key outputs</h2>
+    <div class="body">
+      <div class="summary-grid" id="summaryGrid"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>6. Chart 1: local strain in plastic and metal</h2>
+    <div class="body">
+      <div id="plotStrain" class="chart"></div>
+      <div class="explain">
+        The blue plastic line should now remain at the imposed strain level.  
+        The orange metal line starts near zero at the free strip ends and rises towards the centre.  
+        If the bond is long enough and the adhesive is stiff enough, the metal line approaches the blue line in the middle.
+      </div>
+    </div>
+  </div>
+
+  <div class="panel"><h2>7. Chart 2: metal stress</h2><div class="body"><div id="plotStress" class="chart"></div><div class="explain">This is the axial normal stress in the metal. It comes entirely from adhesive shear transfer because the metal itself is not gripped.</div></div></div>
+  <div class="panel"><h2>8. Chart 3: adhesive shear stress</h2><div class="body"><div id="plotTau" class="chart"></div><div class="explain">Adhesive shear stress peaks near the strip ends and passes through zero at the centre for symmetric loading.</div></div></div>
+  <div class="panel"><h2>9. Chart 4: displacement of plastic and metal</h2><div class="body"><div id="plotDisp" class="chart"></div><div class="explain">The vertical gap between the two displacement curves is the interfacial slip. Smaller gap means smaller adhesive shear deformation.</div></div></div>
+  <div class="panel"><h2>10. Chart 5: interfacial slip</h2><div class="body"><div id="plotSlip" class="chart"></div><div class="explain">Slip is the relative displacement between plastic and metal, w = up - um. It is directly connected to adhesive shear stress through τ = Ga w / ta.</div></div></div>
+  <div class="panel"><h2>11. Chart 6: normalised metal strain</h2><div class="body"><div id="plotNorm" class="chart"></div><div class="explain">A value of 1 means the metal locally matches the imposed substrate strain. A value below 1 means transfer is incomplete at that position.</div></div></div>
+
+  <div class="panel">
+    <h2>12. Copyable summary</h2>
+    <div class="body">
+      <textarea id="copyBox" spellcheck="false"></textarea>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>13. Expandable theory and verification notes</h2>
+    <div class="body">
+      <details>
+        <summary>Assumptions</summary>
+        <div class="detail-body">
+          <ol>
+            <li>Plastic substrate is directly gripped and stretched.</li>
+            <li>Metal strip is shorter and is not directly gripped.</li>
+            <li>Adhesive is thin and transmits shear.</li>
+            <li>Plastic strain in the bonded region is approximated as the imposed average strain.</li>
+            <li>Metal strain is solved from the shear-lag equation with free metal ends.</li>
+          </ol>
+        </div>
+      </details>
+      <details>
+        <summary>Why this is now more physically consistent</summary>
+        <div class="detail-body">
+          If you impose 1% strain on the plastic, the plastic curve should stay at about 1% in the bonded region. The metal does not automatically equal that everywhere, because the metal is not directly pulled by the grips. It must accumulate strain through adhesive shear transfer over a finite transfer length.
+        </div>
+      </details>
+      <details>
+        <summary>Useful limiting cases to test yourself</summary>
+        <div class="detail-body">
+          Try these:
+          <ul>
+            <li>Increase Ga or reduce ta: transfer should improve.</li>
+            <li>Increase L strongly: metal centre strain should approach the plastic strain.</li>
+            <li>Set ΔLs = 0: all fields should collapse to zero.</li>
+            <li>Make L very short: metal strain should remain low everywhere.</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function lenToM(v,u){v=Number(v); if(u==='m') return v; if(u==='mm') return v*1e-3; if(u==='um') return v*1e-6; return v;}
+function stressToPa(v,u){v=Number(v); if(u==='Pa') return v; if(u==='MPa') return v*1e6; if(u==='GPa') return v*1e9; return v;}
+function toMM(v){return v*1e3;} function toUM(v){return v*1e6;} function toMPa(v){return v/1e6;} function pct(v){return 100*v;}
+function fmt(v,d=4){ if(!Number.isFinite(v)) return 'NaN'; const a=Math.abs(v); if((a>=1e4)||(a>0 && a<1e-3)) return v.toExponential(3); return v.toFixed(d); }
+
+function getInputs(){
+  return {
+    L: lenToM(document.getElementById('L').value, document.getElementById('L_unit').value),
+    Ls: lenToM(document.getElementById('Ls').value, document.getElementById('Ls_unit').value),
+    dLs: lenToM(document.getElementById('dLs').value, document.getElementById('dLs_unit').value),
+    b: lenToM(document.getElementById('b').value, document.getElementById('b_unit').value),
+    tm: lenToM(document.getElementById('tm').value, document.getElementById('tm_unit').value),
+    ta: lenToM(document.getElementById('ta').value, document.getElementById('ta_unit').value),
+    tp: lenToM(document.getElementById('tp').value, document.getElementById('tp_unit').value),
+    Em: stressToPa(document.getElementById('Em').value, document.getElementById('Em_unit').value),
+    Ga: stressToPa(document.getElementById('Ga').value, document.getElementById('Ga_unit').value),
+    Ep: stressToPa(document.getElementById('Ep').value, document.getElementById('Ep_unit').value),
+    sigY: stressToPa(document.getElementById('sigY').value, document.getElementById('sigY_unit').value),
+    tauAllow: stressToPa(document.getElementById('tauAllow').value, document.getElementById('tauAllow_unit').value),
+    npts: Math.max(101, Math.floor(Number(document.getElementById('npts').value)||501))
+  };
+}
+function validate(p){
+  const errs=[];
+  if(!(p.L>0)) errs.push('L must be positive.');
+  if(!(p.Ls>=p.L)) errs.push('Ls must be at least as large as L.');
+  if(!(p.dLs>=0)) errs.push('Applied extension must be zero or positive.');
+  if(!(p.b>0&&p.tm>0&&p.ta>0&&p.tp>0)) errs.push('All geometric values must be positive.');
+  if(!(p.Em>0&&p.Ga>0&&p.Ep>0)) errs.push('All stiffness values must be positive.');
+  return errs;
+}
+function compute(p){
+  const epsSub = p.dLs/p.Ls;
+//  const lam = Math.sqrt((p.Ga/p.ta)*(1/(p.Em*p.tm)+1/(p.Ep*p.tp)));
+  const lam = Math.sqrt((p.Ga/p.ta)*(1/(p.Em*p.tm)));
+  const lt = 1/lam;
+  const halfL = p.L/2;
+  const n = p.npts % 2 === 0 ? p.npts+1 : p.npts;
+  const dx = p.L/(n-1);
+  const cHalf = Math.cosh(lam*halfL);
+
+  const x=[], ep=[], em=[], tau=[], w=[], up=[], um=[], sigm=[], emNorm=[];
+  for(let i=0;i<n;i++){
+    const xi = -halfL + i*dx;
+    const ch = Math.cosh(lam*xi);
+    const sh = Math.sinh(lam*xi);
+
+    const epi = epsSub;
+    const emi = epsSub*(1 - ch/cHalf);
+    const taui = p.Em*p.tm*epsSub*lam*sh/cHalf;
+    const wi = (p.ta/p.Ga)*taui;
+
+    const upi = epsSub*(xi + halfL);
+    const umi = upi - wi;
+    const sigmi = p.Em*emi;
+
+    x.push(xi); ep.push(epi); em.push(emi); tau.push(taui); w.push(wi); up.push(upi); um.push(umi); sigm.push(sigmi);
+    emNorm.push(epsSub===0 ? 0 : emi/epsSub);
+  }
+
+  const maxAbs=a=>Math.max(...a.map(v=>Math.abs(v)));
+  const mid=Math.floor(n/2);
+  const left=0, right=n-1;
+
+  return {
+    p,x,ep,em,tau,w,up,um,sigm,emNorm,epsSub,lam,lt,
+    emCentre: em[mid],
+    emLeft: em[left],
+    emRight: em[right],
+    tauCentre: tau[mid],
+    tauMax: maxAbs(tau),
+    sigMax: maxAbs(sigm),
+    slipMax: maxAbs(w),
+    ratio: epsSub===0 ? 0 : em[mid]/epsSub,
+    epsPMin: Math.min(...ep),
+    epsPMax: Math.max(...ep),
+    symmetryTau: Math.abs(tau[left] + tau[right]),
+    symmetryEm: Math.abs(em[left] - em[right])
+  };
+}
+function commonLayout(title,yTitle,xRange){
+  return {
+    title:{text:title,font:{size:18}},
+    margin:{l:72,r:20,t:100,b:70},
+    paper_bgcolor:'#ffffff', plot_bgcolor:'#ffffff',
+    xaxis:{title:'Position along bonded metal strip, x (mm)', range:xRange, gridcolor:'#e5edf6', zeroline:false, tickformat:'.2f'},
+    yaxis:{title:yTitle, gridcolor:'#e5edf6'},
+    legend:{
+  	orientation:'h',
+  	x:0,
+     	y:-0.2
+     },
+    font:{size:14}
+  };
+}
+function drawPlots(r){
+  const xmm=r.x.map(toMM);
+  const xRange=[xmm[0],xmm[xmm.length-1]];
+
+  Plotly.newPlot('plotStrain',[
+    {x:xmm,y:r.ep.map(pct),mode:'lines',name:'Plastic strain, εp',line:{width:4}},
+    {x:xmm,y:r.em.map(pct),mode:'lines',name:'Metal strain, εm',line:{width:4,dash:'dash'}},
+    {x:xRange,y:[pct(r.epsSub),pct(r.epsSub)],mode:'lines',name:'Imposed average substrate strain, εsub',line:{width:2,dash:'dot'}}
+  ], commonLayout('Local strain transfer inside the bonded region','Strain (%)',xRange), {responsive:true, displaylogo:false});
+
+  const stress=[{x:xmm,y:r.sigm.map(toMPa),mode:'lines',name:'Metal stress, σm',line:{width:4}}];
+  if(r.p.sigY>0){
+    stress.push({x:xRange,y:[toMPa(r.p.sigY),toMPa(r.p.sigY)],mode:'lines',name:'Yield marker',line:{width:2,dash:'dot'}});
+    stress.push({x:xRange,y:[-toMPa(r.p.sigY),-toMPa(r.p.sigY)],mode:'lines',showlegend:false,line:{width:2,dash:'dot'}});
+  }
+  Plotly.newPlot('plotStress', stress, commonLayout('Metal axial stress','Stress (MPa)',xRange), {responsive:true, displaylogo:false});
+
+  const tau=[{x:xmm,y:r.tau.map(toMPa),mode:'lines',name:'Adhesive shear stress, τ',line:{width:4}}];
+  if(r.p.tauAllow>0){
+    tau.push({x:xRange,y:[toMPa(r.p.tauAllow),toMPa(r.p.tauAllow)],mode:'lines',name:'Allowable shear marker',line:{width:2,dash:'dot'}});
+    tau.push({x:xRange,y:[-toMPa(r.p.tauAllow),-toMPa(r.p.tauAllow)],mode:'lines',showlegend:false,line:{width:2,dash:'dot'}});
+  }
+  Plotly.newPlot('plotTau', tau, commonLayout('Adhesive shear stress','Shear stress (MPa)',xRange), {responsive:true, displaylogo:false});
+
+  Plotly.newPlot('plotDisp',[
+    {x:xmm,y:r.up.map(toMM),mode:'lines',name:'Plastic displacement, up',line:{width:4}},
+    {x:xmm,y:r.um.map(toMM),mode:'lines',name:'Metal displacement, um',line:{width:4,dash:'dash'}}
+  ], commonLayout('Displacement inside the bonded region','Displacement (mm)',xRange), {responsive:true, displaylogo:false});
+
+  Plotly.newPlot('plotSlip',[
+    {x:xmm,y:r.w.map(toUM),mode:'lines',name:'Slip, w = up - um',line:{width:4}}
+  ], commonLayout('Interfacial slip','Slip (µm)',xRange), {responsive:true, displaylogo:false});
+
+  Plotly.newPlot('plotNorm',[
+    {x:xmm,y:r.emNorm,mode:'lines',name:'εm / εsub',line:{width:4}}
+  ], commonLayout('Normalised metal strain','εm / εsub (-)',xRange), {responsive:true, displaylogo:false});
+}
+function drawGeometryInfo(r){
+  const x0=-toMM(r.p.L)/2, x1=toMM(r.p.L)/2;
+  document.getElementById('currentGeometry').innerHTML =
+    `<strong>Current values interpreted by the app</strong><br>
+     Ls = ${fmt(toMM(r.p.Ls),3)} mm, L = ${fmt(toMM(r.p.L),3)} mm, so the plotted x-axis should run from ${fmt(x0,3)} mm to ${fmt(x1,3)} mm.`;
+}
+function drawSchematic(r){
+  const svg=document.getElementById('schematic');
+  const W=980, m=70, x0=m, x1=W-m, fullW=x1-x0;
+  const frac=r.p.L/r.p.Ls;
+  const metalW=fullW*frac;
+  const mx0=(W-metalW)/2;
+  svg.innerHTML = `
+    <rect x="${x0}" y="120" width="${fullW}" height="38" rx="6" fill="#cfe0f1" stroke="#6f90b3"></rect>
+    <rect x="${mx0}" y="92" width="${metalW}" height="10" rx="3" fill="#b8b8be" stroke="#6a6a6e"></rect>
+    <rect x="${mx0}" y="103" width="${metalW}" height="9" rx="2" fill="#f3d7a4" stroke="#be8b2c"></rect>
+    <text x="${x0}" y="40" font-size="16" font-weight="700" fill="#1f2a36">Current geometry sketch</text>
+    <text x="${x0+5}" y="143" font-size="13" fill="#1f2a36">Plastic substrate, full gripped length Ls = ${fmt(toMM(r.p.Ls),2)} mm</text>
+    <text x="${mx0+5}" y="87" font-size="13" fill="#1f2a36">Metal strip, bonded length L = ${fmt(toMM(r.p.L),2)} mm</text>
+    <line x1="${x0}" y1="175" x2="${x1}" y2="175" stroke="#aeb9c5" stroke-width="2"></line>
+    <line x1="${x0}" y1="171" x2="${x0}" y2="179" stroke="#aeb9c5" stroke-width="2"></line>
+    <line x1="${x1}" y1="171" x2="${x1}" y2="179" stroke="#aeb9c5" stroke-width="2"></line>
+    <text x="${W/2-78}" y="194" font-size="13" fill="#1f2a36">Full substrate length Ls</text>
+    <line x1="${mx0}" y1="65" x2="${mx0+metalW}" y2="65" stroke="#aeb9c5" stroke-width="2"></line>
+    <line x1="${mx0}" y1="61" x2="${mx0}" y2="69" stroke="#aeb9c5" stroke-width="2"></line>
+    <line x1="${mx0+metalW}" y1="61" x2="${mx0+metalW}" y2="69" stroke="#aeb9c5" stroke-width="2"></line>
+    <text x="${mx0+metalW/2-47}" y="56" font-size="13" fill="#1f2a36">Bonded length L</text>
+  `;
+}
+function renderChecks(r){
+  const metalOK = r.p.sigY>0 ? r.sigMax<=r.p.sigY : true;
+  const adhOK = r.p.tauAllow>0 ? r.tauMax<=r.p.tauAllow : true;
+
+  const status = [];
+  status.push(`<div class="status ${metalOK?'ok':'bad'}">Metal check: max |σm| = ${fmt(toMPa(r.sigMax),3)} MPa ${metalOK?'is below':'exceeds'} σy = ${fmt(toMPa(r.p.sigY),3)} MPa.</div>`);
+  status.push(`<div class="status ${adhOK?'ok':'bad'}">Adhesive check: max |τ| = ${fmt(toMPa(r.tauMax),3)} MPa ${adhOK?'is below':'exceeds'} τallow = ${fmt(toMPa(r.p.tauAllow),3)} MPa.</div>`);
+  document.getElementById('statusBox').innerHTML = status.join('');
+
+  const checks = [
+    ['Metal end strain at -L/2', `${fmt(pct(r.emLeft),6)} %`],
+    ['Metal end strain at +L/2', `${fmt(pct(r.emRight),6)} %`],
+    ['Centre adhesive shear', `${fmt(toMPa(r.tauCentre),6)} MPa`],
+    ['Plastic strain min in bonded region', `${fmt(pct(r.epsPMin),6)} %`],
+    ['Plastic strain max in bonded region', `${fmt(pct(r.epsPMax),6)} %`],
+    ['Left-right shear symmetry error', `${fmt(toMPa(r.symmetryTau),6)} MPa`],
+    ['Left-right metal strain symmetry error', `${fmt(pct(r.symmetryEm),6)} %`],
+    ['Centre transfer ratio εm(0)/εsub', `${fmt(r.ratio,6)}`]
+  ];
+  document.getElementById('checkGrid').innerHTML = checks.map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+}
+function renderSummary(r){
+  const items = [
+    ['Imposed average substrate strain, εsub', `${fmt(pct(r.epsSub),4)} %`],
+    ['Transfer parameter, λ', `${fmt(r.lam,4)} 1/m`],
+    ['Transfer length, 1/λ', `${fmt(toMM(r.lt),4)} mm`],
+    ['Centre metal strain, εm(0)', `${fmt(pct(r.emCentre),4)} %`],
+    ['Maximum metal stress', `${fmt(toMPa(r.sigMax),4)} MPa`],
+    ['Maximum adhesive shear stress', `${fmt(toMPa(r.tauMax),4)} MPa`],
+    ['Maximum interfacial slip', `${fmt(toUM(r.slipMax),4)} µm`]
+  ];
+  document.getElementById('summaryGrid').innerHTML = items.map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+}
+function buildCopyText(r){
+  const x0=-toMM(r.p.L)/2, x1=toMM(r.p.L)/2;
+  const txt = [
+    'Adhesive Shear-Lag Model 1, corrected teaching version',
+    '',
+    `Ls\t${fmt(toMM(r.p.Ls),4)}\tmm`,
+    `L\t${fmt(toMM(r.p.L),4)}\tmm`,
+    `Expected plotted x-range\t${fmt(x0,4)} to ${fmt(x1,4)}\tmm`,
+    `Imposed substrate strain εsub\t${fmt(pct(r.epsSub),6)}\t%`,
+    `Transfer parameter λ\t${fmt(r.lam,6)}\t1/m`,
+    `Transfer length 1/λ\t${fmt(toMM(r.lt),6)}\tmm`,
+    `Centre metal strain εm(0)\t${fmt(pct(r.emCentre),6)}\t%`,
+    `Centre transfer ratio εm(0)/εsub\t${fmt(r.ratio,6)}\t(-)`,
+    `Maximum metal stress\t${fmt(toMPa(r.sigMax),6)}\tMPa`,
+    `Maximum adhesive shear stress\t${fmt(toMPa(r.tauMax),6)}\tMPa`,
+    `Maximum interfacial slip\t${fmt(toUM(r.slipMax),6)}\tµm`,
+    '',
+    'Automatic checks',
+    `Metal end strain at -L/2\t${fmt(pct(r.emLeft),6)}\t%`,
+    `Metal end strain at +L/2\t${fmt(pct(r.emRight),6)}\t%`,
+    `Centre adhesive shear\t${fmt(toMPa(r.tauCentre),6)}\tMPa`,
+    `Plastic strain min in bonded region\t${fmt(pct(r.epsPMin),6)}\t%`,
+    `Plastic strain max in bonded region\t${fmt(pct(r.epsPMax),6)}\t%`
+  ].join('\n');
+  document.getElementById('copyBox').value = txt;
+}
+let csvText='';
+function buildCSV(r){
+  const lines=['x_mm,u_m_mm,u_p_mm,slip_um,eps_m_percent,eps_p_percent,sigma_m_MPa,tau_MPa,eps_m_over_eps_sub'];
+  for(let i=0;i<r.x.length;i++){
+    lines.push([fmt(toMM(r.x[i]),8),fmt(toMM(r.um[i]),8),fmt(toMM(r.up[i]),8),fmt(toUM(r.w[i]),8),fmt(pct(r.em[i]),8),fmt(pct(r.ep[i]),8),fmt(toMPa(r.sigm[i]),8),fmt(toMPa(r.tau[i]),8),fmt(r.emNorm[i],8)].join(','));
+  }
+  csvText=lines.join('\n');
+}
+function exportCSV(){
+  const blob=new Blob([csvText],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='adhesive_shear_lag_model1_verified.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function copySummary(){
+  const box=document.getElementById('copyBox'); box.select(); box.setSelectionRange(0,999999);
+  navigator.clipboard.writeText(box.value).catch(()=>document.execCommand('copy'));
+}
+function downloadPNG(){ Plotly.downloadImage('plotStrain', {format:'png', width:1200, height:900, filename:'strain_chart_verified'}); }
+function runModel(){
+  const p=getInputs();
+  const errs=validate(p);
+  const st=document.getElementById('inputStatus');
+  if(errs.length){ st.textContent=errs.join(' '); st.style.color='#9d1428'; return; }
+  const r=compute(p);
+  drawGeometryInfo(r);
+  drawSchematic(r);
+  renderChecks(r);
+  renderSummary(r);
+  drawPlots(r);
+  buildCopyText(r);
+  buildCSV(r);
+  st.textContent='Model solved successfully.';
+  st.style.color='#116d34';
+}
+function loadExample(){
+  const vals={Ls:80,Ls_unit:'mm',dLs:0.8,dLs_unit:'mm',b:10,b_unit:'mm',L:30,L_unit:'mm',tm:20,tm_unit:'um',Em:110,Em_unit:'GPa',sigY:250,sigY_unit:'MPa',ta:25,ta_unit:'um',Ga:400,Ga_unit:'MPa',tauAllow:15,tauAllow_unit:'MPa',tp:125,tp_unit:'um',Ep:2.5,Ep_unit:'GPa',npts:501};
+  Object.entries(vals).forEach(([k,v])=>{ const el=document.getElementById(k); if(el) el.value=v; });
+  runModel();
+}
+document.getElementById('runBtn').addEventListener('click', runModel);
+document.getElementById('exampleBtn').addEventListener('click', loadExample);
+document.getElementById('csvBtn').addEventListener('click', exportCSV);
+document.getElementById('copyBtn').addEventListener('click', copySummary);
+document.getElementById('pngBtn').addEventListener('click', downloadPNG);
+loadExample();
+</script>
+</body>
+</html>
