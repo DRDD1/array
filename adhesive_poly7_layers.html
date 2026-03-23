@@ -70,15 +70,16 @@
           <li>width b is shown in the input panel but is not used in the present per-unit-width formulation</li>
         </ul>
       </div>
-
+      <div class="formula">Displacements: ut = top metal, up1...up7 = polymer sublayers from top to bottom, ub = bottom metal</div>
       <div class="formula">Imposed bottom-metal strain: ε0 = ΔLs / Ls</div>
       <div class="formula">Prescribed bottom-metal displacement: ub(x) = ε0 x</div>
-      <div class="formula">Top metal equilibrium: Et tt utt'' = k1 (ut - up1), with k1 = Ga1 / ta1</div>
-      <div class="formula">Polymer sublayer i equilibrium: Ep·tsp·upi'' = (upi-1 − upi) + (upi+1 − upi) for interior layers; at top: (ut − up1) + (up2 − up1); at bottom: (ub − up7) + (up6 − up7) ;  at the two ends of the polymer stack, coupling to adhesive 1 or adhesive 2</div>
-      <div class="formula">Internal polymer coupling between adjacent sublayers: kp = Gp / (tp / 7) = 7 Gp / tp</div>
-    <div class="formula">Polymer properties are defined by Young’s modulus E and shear modulus G. For an isotropic material, these are linked through Poisson’s ratio ν by: E = 2G(1 + ν)</div>  <div class="formula">Upper adhesive shear: τ1 = k1 (ut - up1), lower adhesive shear: τ2 = k2 (up7 - ub), with k2 = Ga2 / ta2</div>
-      <div class="formula">Internal polymer shear between adjacent sublayers: τp,i,i+1 = kp (upi - upi+1)</div>
-
+      <div class="formula">Top metal equilibrium: Et·tt·ut'' = k1(up1 - ut), with k1 = Ga1 / ta1</div>
+      <div class="formula">Polymer sublayer equilibrium: interior layers satisfy Ep·tsp·upi'' = kp(upi-1 - upi) + kp(upi+1 - upi); top layer: Ep·tsp·up1'' = k1(ut - up1) + kp(up2 - up1); bottom layer: Ep·tsp·up7'' = k2(ub - up7) + kp(up6 - up7)</div>
+      <div class="formula">Internal polymer coupling between adjacent sublayers: kp = Gp / (tp / 7) = 7Gp / tp</div>
+      <div class="formula">Polymer properties are defined by Young’s modulus E and shear modulus G. For an isotropic material, these are related through Poisson’s ratio ν by: E = 2G(1 + ν)</div>
+      <div class="formula">Adhesive shear is proportional to interfacial displacement difference: upper interface τ1 = k1(ut - up1), lower interface τ2 = k2(up7 - ub), with k2 = Ga2 / ta2</div>
+      <div class="formula">Internal polymer shear between adjacent sublayers: τp,i,i+1 = kp(upi - upi+1)</div>
+      
       <p class="muted">
         The charts use the bonded-strip coordinate only, from <strong>-L/2</strong> to <strong>+L/2</strong>. The imposed lower metal strain is shown as a constant reference line. All Plotly legends are interactive, so individual curves can be switched on or off. For the polymer families, only the top and bottom polymer sublayers are visible by default to avoid overcrowding.
       </p>
