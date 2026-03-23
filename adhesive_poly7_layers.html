@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Adhesive Shear-Lag Teaching App, Polymer 7-Sublayer Version</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root{
+      --bg:#f5f7fb; --panel:#ffffff; --ink:#1f2a36; --muted:#5d6a77; --line:#d7dfe8;
+      --accent:#1f5fa8; --ok:#116d34; --warn:#9b5d00; --bad:#9d1428;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif;line-height:1.5}
+    header{background:#1f5fa8;color:#fff;padding:20px 18px}
+    header h1{margin:0 0 8px;font-size:1.7rem}
+    .wrap{max-width:1160px;margin:0 auto;padding:18px}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:18px;overflow:hidden}
+    .panel h2{margin:0;padding:14px 16px;border-bottom:1px solid var(--line);background:#fbfcfe;font-size:1.06rem}
+    .body{padding:16px}
+    .input-grid{display:grid;grid-template-columns:1.7fr 130px 100px;gap:8px;align-items:center;margin:8px 0}
+    @media (max-width:820px){.input-grid{grid-template-columns:1fr}}
+    input,select,button,textarea{width:100%;padding:9px 10px;border:1px solid #bcc7d3;border-radius:8px;background:#fff;color:var(--ink);font-size:0.95rem}
+    button{border:none;cursor:pointer;background:var(--accent);color:#fff;font-weight:700}
+    button.secondary{background:#eef4fb;color:var(--accent);border:1px solid #c9d8eb}
+    .btn-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+    @media (max-width:820px){.btn-row{grid-template-columns:1fr}}
+    .muted{color:var(--muted);font-size:0.93rem}
+    .section-title{margin:18px 0 8px;font-weight:700;color:var(--accent)}
+    .help-box,.explain{background:#f7fbff;border-left:4px solid var(--accent);padding:10px 12px;margin:10px 0}
+    .formula{font-family:Consolas,Monaco,monospace;background:#f3f6fa;border-radius:8px;padding:10px 12px;margin:10px 0;overflow-x:auto}
+    .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+    .card{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fcfdff}
+    .card .k{font-size:0.86rem;color:var(--muted);margin-bottom:4px}
+    .card .v{font-weight:700;font-size:1.04rem}
+    .status{padding:10px 12px;border-radius:10px;margin-bottom:10px;border:1px solid var(--line)}
+    .ok{background:#ecf8ef;color:var(--ok);border-color:#c1e0cb}
+    .warn{background:#fff7ea;color:var(--warn);border-color:#ecd5af}
+    .bad{background:#fdecef;color:var(--bad);border-color:#efc2cb}
+    .chart{width:100%;height:540px;border:1px solid var(--line);border-radius:12px;background:#fff}
+    textarea{min-height:320px;resize:vertical;font-family:Consolas,Monaco,monospace;white-space:pre}
+    details{border:1px solid var(--line);border-radius:10px;margin-bottom:12px;background:#fff}
+    details summary{cursor:pointer;padding:12px 14px;font-weight:700;background:#fbfcfe}
+    details .detail-body{padding:0 14px 14px}
+    .now-box{background:#fafbfd;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+  </style>
+</head>
+<body>
+<header>
+  <h1>Adhesive Shear-Lag Teaching App, Polymer 7-Sublayer Version</h1>
+  <div>Updated  version: top metal / adhesive 1 / seven polymer sublayers / adhesive 2 / bottom metal. The bottom metal strain is imposed uniformly and acts as the driving layer. Width b is retained as an input for reference, but is currently unused because this formulation is per unit width.</div>
+</header>
+
+<div class="wrap">
+
+  <div class="panel">
+    <h2>1. Model used in this updated version</h2>
+    <div class="body">
+      <div class="help-box">
+        <strong>What this model assumes</strong><br>
+        This is a <strong>one-dimensional axial shear-lag model</strong> along the bonded length. It is intended for trend interpretation, not as a full 2D or 3D continuum solution through thickness. The bottom metal layer is prescribed to deform at a uniform axial strain. The top metal and the seven polymer sublayers are not directly gripped and acquire strain through the upper adhesive, the internal polymer shear couplings, and the lower adhesive.<br><br>
+        In this updated version:
+        <ul>
+          <li>the bottom metal strain is imposed and constant</li>
+          <li>the top metal strain is solved</li>
+          <li>the polymer is split into seven equal sublayers, each with its own solved displacement and strain field</li>
+          <li>the upper and lower adhesives carry different shear-stress distributions</li>
+          <li>the polymer transfers load internally by shear between adjacent sublayers</li>
+          <li>the solution is obtained numerically along the bonded length</li>
+          <li>width b is shown in the input panel but is not used in the present per-unit-width formulation</li>
+        </ul>
+      </div>
+
+      <div class="formula">Imposed bottom-metal strain: ε0 = ΔLs / Ls</div>
+      <div class="formula">Prescribed bottom-metal displacement: ub(x) = ε0 x</div>
+      <div class="formula">Top metal equilibrium: Et tt utt'' = k1 (ut - up1), with k1 = Ga1 / ta1</div>
+      <div class="formula">Polymer sublayer i equilibrium: Ep·tsp·upi'' = (upi-1 − upi) + (upi+1 − upi) for interior layers; at top: (ut − up1) + (up2 − up1); at bottom: (ub − up7) + (up6 − up7) ;  at the two ends of the polymer stack, coupling to adhesive 1 or adhesive 2</div>
+      <div class="formula">Internal polymer coupling between adjacent sublayers: kp = Gp / (tp / 7) = 7 Gp / tp</div>
+      <div class="formula">Upper adhesive shear: τ1 = k1 (ut - up1), lower adhesive shear: τ2 = k2 (up7 - ub), with k2 = Ga2 / ta2</div>
+      <div class="formula">Internal polymer shear between adjacent sublayers: τp,i,i+1 = kp (upi - upi+1)</div>
+
+      <p class="muted">
+        The charts use the bonded-strip coordinate only, from <strong>-L/2</strong> to <strong>+L/2</strong>. The imposed lower metal strain is shown as a constant reference line. All Plotly legends are interactive, so individual curves can be switched on or off. For the polymer families, only the top and bottom polymer sublayers are visible by default to avoid overcrowding.
+      </p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>2. Inputs</h2>
+    <div class="body">
+      <div class="section-title">Whole specimen</div>
+      <div class="input-grid"><label for="Ls">Imposed reference length, Ls</label><input id="Ls" type="number" value="80" step="0.1"><select id="Ls_unit"><option value="mm">mm</option><option value="m">m</option></select></div>
+      <div class="input-grid"><label for="dLs">Applied extension, ΔLs</label><input id="dLs" type="number" value="0.8" step="0.01"><select id="dLs_unit"><option value="mm">mm</option><option value="um">µm</option><option value="m">m</option></select></div>
+      <div class="input-grid"><label for="b">Width, b</label><input id="b" type="number" value="10" step="0.1"><select id="b_unit"><option value="mm">mm</option><option value="m">m</option></select></div>
+      <div class="input-grid"><label for="L">Bonded length, L</label><input id="L" type="number" value="30" step="0.1"><select id="L_unit"><option value="mm">mm</option><option value="m">m</option></select></div>
+
+      <div class="section-title">Top metal layer</div>
+      <div class="input-grid"><label for="tt">Top metal thickness, tt</label><input id="tt" type="number" value="20" step="0.1"><select id="tt_unit"><option value="um">µm</option><option value="mm">mm</option><option value="m">m</option></select></div>
+      <div class="input-grid"><label for="Et">Top metal Young's modulus, Et</label><input id="Et" type="number" value="110" step="0.1"><select id="Et_unit"><option value="GPa">GPa</option><option value="MPa">MPa</option><option value="Pa">Pa</option></select></div>
+      <div class="input-grid"><label for="sigYt">Top metal yield marker, σy,t</label><input id="sigYt" type="number" value="250" step="1"><select id="sigYt_unit"><option value="MPa">MPa</option><option value="GPa">GPa</option><option value="Pa">Pa</option></select></div>
+
+      <div class="section-title">Upper adhesive</div>
+      <div class="input-grid"><label for="ta1">Upper adhesive thickness, ta1</label><input id="ta1" type="number" value="25" step="0.1"><select id="ta1_unit"><option value="um">µm</option><option value="mm">mm</option><option value="m">m</option></select></div>
+      <div class="input-grid"><label for="Ga1">Upper adhesive shear modulus, Ga1</label><input id="Ga1" type="number" value="400" step="1"><select id="Ga1_unit"><option value="MPa">MPa</option><option value="GPa">GPa</option><option value="Pa">Pa</option></select></div>
+      <div class="input-grid"><label for="tauAllow1">Upper adhesive allowable shear marker, τallow,1</label><input id="tauAllow1" type="number" value="15" step="0.1"><select id="tauAllow1_unit"><option value="MPa">MPa</option><option value="GPa">GPa</option><option value="Pa">Pa</option></select></div>
+
+      <div class="section-title">Polymer core</div>
+      <div class="input-grid"><label for="tp">Polymer total thickness, tp</label><input id="tp" type="number" value="125" step="0.1"><select id="tp_unit"><option value="um">µm</option><option value="mm">mm</option><option value="m">m</option></select></div>
+      <div class="input-grid"><label for="Ep">Polymer Young's modulus, Ep</label><input id="Ep" type="number" value="2.5" step="0.1"><select id="Ep_unit"><option value="GPa">GPa</option><option value="MPa">MPa</option><option value="Pa">Pa</option></select></div>
+      <div class="input-grid"><label for="Gp">Polymer shear modulus, Gp</label><input id="Gp" type="number" value="0.9" step="0.05"><select id="Gp_unit"><option value="GPa">GPa</option><option value="MPa">MPa</option><option value="Pa">Pa</option></select></div>
+
+      <div class="section-title">Lower adhesive</div>
+      <div class="input-grid"><label for="ta2">Lower adhesive thickness, ta2</label><input id="ta2" type="number" value="25" step="0.1"><select id="ta2_unit"><option value="um">µm</option><option value="mm">mm</option><option value="m">m</option></select></div>
+      <div class="input-grid"><label for="Ga2">Lower adhesive shear modulus, Ga2</label><input id="Ga2" type="number" value="400" step="1"><select id="Ga2_unit"><option value="MPa">MPa</option><option value="GPa">GPa</option><option value="Pa">Pa</option></select></div>
+      <div class="input-grid"><label for="tauAllow2">Lower adhesive allowable shear marker, τallow,2</label><input id="tauAllow2" type="number" value="15" step="0.1"><select id="tauAllow2_unit"><option value="MPa">MPa</option><option value="GPa">GPa</option><option value="Pa">Pa</option></select></div>
+
+      <div class="section-title">Bottom metal, imposed driver</div>
+      <div class="input-grid"><label for="tb">Bottom metal thickness, tb</label><input id="tb" type="number" value="20" step="0.1"><select id="tb_unit"><option value="um">µm</option><option value="mm">mm</option><option value="m">m</option></select></div>
+      <div class="input-grid"><label for="Eb">Bottom metal Young's modulus, Eb</label><input id="Eb" type="number" value="110" step="0.1"><select id="Eb_unit"><option value="GPa">GPa</option><option value="MPa">MPa</option><option value="Pa">Pa</option></select></div>
+      <div class="input-grid"><label for="sigYb">Bottom metal yield marker, σy,b</label><input id="sigYb" type="number" value="250" step="1"><select id="sigYb_unit"><option value="MPa">MPa</option><option value="GPa">GPa</option><option value="Pa">Pa</option></select></div>
+
+      <div class="section-title">Display</div>
+      <div class="input-grid"><label for="npts">Number of plotting points</label><input id="npts" type="number" value="401" step="2" min="101"><div class="muted">Use 201 to 801</div></div>
+
+      <div class="btn-row">
+        <button id="runBtn">Run model</button>
+        <button id="exampleBtn" class="secondary">Load teaching example</button>
+        <button id="csvBtn" class="secondary">Export CSV</button>
+      </div>
+      <div class="btn-row">
+        <button id="copyBtn" class="secondary">Copy summary</button>
+        <button id="pngBtn" class="secondary">Download first chart PNG</button>
+        <div id="inputStatus" class="muted" style="display:flex;align-items:center;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>3. Current interpreted geometry</h2>
+    <div class="body">
+      <div id="currentGeometry" class="now-box"></div>
+      <svg id="schematic" viewBox="0 0 980 360"></svg>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>4. Automatic model checks</h2>
+    <div class="body">
+      <div id="statusBox"></div>
+      <div class="summary-grid" id="checkGrid"></div>
+      <div class="explain">
+        These checks focus on physically relevant quantities for this 1D model: end strain, not end displacement, is used to assess the free-end approximation in the solved layers. Additional checks report centre shear symmetry and a consistency estimate for Ep and Gp under an isotropic linear-elastic interpretation.
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>5. Key outputs</h2>
+    <div class="body">
+      <div class="summary-grid" id="summaryGrid"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>6. Chart 1: local strain in all solid layers</h2>
+    <div class="body">
+      <div id="plotStrain" class="chart"></div>
+      <div class="explain">
+        The bottom metal is the imposed driver and remains flat at ε0. By default only the top and bottom polymer sublayers are shown. Use the legend to show or hide any individual line.
+      </div>
+    </div>
+  </div>
+
+  <div class="panel"><h2>7. Chart 2: axial normal stress in the solid layers</h2><div class="body"><div id="plotStress" class="chart"></div><div class="explain">The top and polymer stresses are solved fields. The bottom-metal stress is shown as the imposed strain multiplied by Eb, because its strain is prescribed in this kinematic driving model.</div></div></div>
+  <div class="panel"><h2>8. Chart 3: adhesive and internal polymer shear stresses</h2><div class="body"><div id="plotTau" class="chart"></div><div class="explain">For symmetric loading, the adhesive and internal polymer shear curves should pass through zero at the centre. By default only the first and last internal polymer shears are shown among the polymer interfaces.</div></div></div>
+  <div class="panel"><h2>9. Chart 4: displacement of the solved solid layers</h2><div class="body"><div id="plotDisp" class="chart"></div><div class="explain">The vertical gaps between adjacent displacement curves are the slips or internal mismatch displacements that generate shear transfer.</div></div></div>
+  <div class="panel"><h2>10. Chart 5: interfacial and internal slips</h2><div class="body"><div id="plotSlip" class="chart"></div><div class="explain">Slip is the relative displacement across the upper adhesive, the internal polymer interfaces, and the lower adhesive. By default only the first and last internal polymer slips are shown among the polymer interfaces.</div></div></div>
+  <div class="panel"><h2>11. Chart 6: normalised strain transfer</h2><div class="body"><div id="plotNorm" class="chart"></div><div class="explain">A value of 1 means the local strain equals the imposed bottom-metal strain ε0. Comparing the seven polymer sublayers shows how much of the through-thickness gradient remains at each x-position.</div></div></div>
+
+  <div class="panel">
+    <h2>12. Copyable summary</h2>
+    <div class="body">
+      <textarea id="copyBox" spellcheck="false"></textarea>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>13. Expandable theory and verification notes</h2>
+    <div class="body">
+      <details>
+        <summary>Assumptions</summary>
+        <div class="detail-body">
+          <ol>
+            <li>The bottom metal is directly driven and has a prescribed uniform strain ε0.</li>
+            <li>The top metal and the seven polymer sublayers are not directly gripped.</li>
+            <li>Both adhesives are thin and transmit shear only through a linear elastic relation τ = G δ / t.</li>
+            <li>The polymer transfers axial load internally through linear elastic internal shear couplings.</li>
+            <li>Small strain and linear elastic axial response are assumed for the solved solid layers.</li>
+            <li>The model is one-dimensional along the bonded length. It does not resolve full 2D or 3D through-thickness continuum behaviour.</li>
+            <li>Width b is retained for reference but is currently unused because the present equations are written per unit width.</li>
+          </ol>
+        </div>
+      </details>
+      <details>
+        <summary>Material consistency note for Ep and Gp</summary>
+        <div class="detail-body">
+          For an isotropic linear-elastic material, Young's modulus and shear modulus are related by G = E / [2(1 + ν)]. This app allows Ep and Gp to be entered independently because they may be treated as effective values. The automatic checks estimate the implied Poisson's ratio ν = Ep / (2 Gp) - 1 and warn if it is outside the isotropic linear-elastic range.
+        </div>
+      </details>
+      <details>
+        <summary>Useful limiting cases to test yourself</summary>
+        <div class="detail-body">
+          <ul>
+            <li>Increase Gp strongly: the seven polymer sublayers should collapse towards one common response.</li>
+            <li>Decrease Gp strongly: the lower polymer sublayers should follow the imposed driver much more closely than the upper ones.</li>
+            <li>Increase Ga2 strongly: the bottom polymer sublayer should follow the bottom metal more closely.</li>
+            <li>Increase Ga1 strongly: the top metal should follow the upper polymer sublayer more closely.</li>
+            <li>Set ΔLs = 0: all fields should collapse to zero.</li>
+          </ul>
+        </div>
+      </details>
+      <details>
+        <summary>Important note on bottom-metal properties</summary>
+        <div class="detail-body">
+          Because the bottom-metal strain is prescribed, its thickness does not enter the solved transfer equations. Eb is used only if you wish to display the implied bottom-metal stress σb = Eb ε0.
+        </div>
+      </details>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const NPOLY = 7;
+function lenToM(v,u){v=Number(v); if(u==='m') return v; if(u==='mm') return v*1e-3; if(u==='um') return v*1e-6; return v;}
+function stressToPa(v,u){v=Number(v); if(u==='Pa') return v; if(u==='MPa') return v*1e6; if(u==='GPa') return v*1e9; return v;}
+function toMM(v){return v*1e3;} function toUM(v){return v*1e6;} function toMPa(v){return v/1e6;} function pct(v){return 100*v;}
+function fmt(v,d=4){ if(!Number.isFinite(v)) return 'NaN'; const a=Math.abs(v); if((a>=1e4)||(a>0 && a<1e-3)) return v.toExponential(3); return v.toFixed(d); }
+function visibleDefaultPoly(index){ return (index===1 || index===NPOLY) ? true : 'legendonly'; }
+function visibleDefaultInterface(index){ return (index===1 || index===NPOLY-1) ? true : 'legendonly'; }
+function dashForIndex(index,total){ const dashes=['solid','dash','dot','dashdot','longdash','longdashdot']; return dashes[(index-1)%dashes.length]; }
+
+function getInputs(){
+  return {
+    Ls: lenToM(document.getElementById('Ls').value, document.getElementById('Ls_unit').value),
+    dLs: lenToM(document.getElementById('dLs').value, document.getElementById('dLs_unit').value),
+    b: lenToM(document.getElementById('b').value, document.getElementById('b_unit').value),
+    L: lenToM(document.getElementById('L').value, document.getElementById('L_unit').value),
+    tt: lenToM(document.getElementById('tt').value, document.getElementById('tt_unit').value),
+    ta1: lenToM(document.getElementById('ta1').value, document.getElementById('ta1_unit').value),
+    tp: lenToM(document.getElementById('tp').value, document.getElementById('tp_unit').value),
+    ta2: lenToM(document.getElementById('ta2').value, document.getElementById('ta2_unit').value),
+    tb: lenToM(document.getElementById('tb').value, document.getElementById('tb_unit').value),
+    Et: stressToPa(document.getElementById('Et').value, document.getElementById('Et_unit').value),
+    Ga1: stressToPa(document.getElementById('Ga1').value, document.getElementById('Ga1_unit').value),
+    Ep: stressToPa(document.getElementById('Ep').value, document.getElementById('Ep_unit').value),
+    Gp: stressToPa(document.getElementById('Gp').value, document.getElementById('Gp_unit').value),
+    Ga2: stressToPa(document.getElementById('Ga2').value, document.getElementById('Ga2_unit').value),
+    Eb: stressToPa(document.getElementById('Eb').value, document.getElementById('Eb_unit').value),
+    sigYt: stressToPa(document.getElementById('sigYt').value, document.getElementById('sigYt_unit').value),
+    sigYb: stressToPa(document.getElementById('sigYb').value, document.getElementById('sigYb_unit').value),
+    tauAllow1: stressToPa(document.getElementById('tauAllow1').value, document.getElementById('tauAllow1_unit').value),
+    tauAllow2: stressToPa(document.getElementById('tauAllow2').value, document.getElementById('tauAllow2_unit').value),
+    npts: Math.max(101, Math.floor(Number(document.getElementById('npts').value)||401))
+  };
+}
+
+function validate(p){
+  const errs=[];
+  if(!(p.L>0)) errs.push('Bonded length L must be positive.');
+  if(!(p.Ls>=p.L)) errs.push('Ls must be at least as large as L.');
+  if(!(p.dLs>=0)) errs.push('Applied extension must be zero or positive.');
+  if(!(p.b>0&&p.tt>0&&p.ta1>0&&p.tp>0&&p.ta2>0&&p.tb>0)) errs.push('All geometric values must be positive.');
+  if(!(p.Et>0&&p.Ga1>0&&p.Ep>0&&p.Gp>0&&p.Ga2>0&&p.Eb>0)) errs.push('All stiffness values must be positive.');
+  return errs;
+}
+
+function makeZero(n){ return Array.from({length:n}, ()=>Array(n).fill(0)); }
+function identity(n){ const M=makeZero(n); for(let i=0;i<n;i++) M[i][i]=1; return M; }
+function scale(M,s){ return M.map(row=>row.map(v=>s*v)); }
+function add(X,Y){ return X.map((row,i)=>row.map((v,j)=>v+Y[i][j])); }
+function sub(X,Y){ return X.map((row,i)=>row.map((v,j)=>v-Y[i][j])); }
+function mul(X,Y){ const n=X.length, m=Y[0].length, p=Y.length; const R=Array.from({length:n}, ()=>Array(m).fill(0)); for(let i=0;i<n;i++) for(let j=0;j<m;j++){ let s=0; for(let k=0;k<p;k++) s += X[i][k]*Y[k][j]; R[i][j]=s; } return R; }
+function mulv(X,v){ return X.map(row=>row.reduce((s,val,j)=>s+val*v[j],0)); }
+function subv(a,b){ return a.map((v,i)=>v-b[i]); }
+function invert(M){
+  const n=M.length;
+  const a=M.map(row=>row.slice());
+  const inv=identity(n);
+  for(let col=0; col<n; col++){
+    let piv=col, maxv=Math.abs(a[col][col]);
+    for(let r=col+1;r<n;r++){ const v=Math.abs(a[r][col]); if(v>maxv){maxv=v; piv=r;} }
+    if(maxv<1e-30) throw new Error('Block solve failed: singular matrix for these inputs.');
+    if(piv!==col){ [a[col],a[piv]]=[a[piv],a[col]]; [inv[col],inv[piv]]=[inv[piv],inv[col]]; }
+    const diag=a[col][col];
+    for(let j=0;j<n;j++){ a[col][j]/=diag; inv[col][j]/=diag; }
+    for(let r=0;r<n;r++){
+      if(r===col) continue;
+      const f=a[r][col];
+      if(f===0) continue;
+      for(let j=0;j<n;j++){ a[r][j]-=f*a[col][j]; inv[r][j]-=f*inv[col][j]; }
+    }
+  }
+  return inv;
+}
+
+function compute(p){
+  const eps0 = p.dLs / p.Ls;
+  const k1 = p.Ga1 / p.ta1;
+  const k2 = p.Ga2 / p.ta2;
+  const tps = p.tp / NPOLY;
+  const kp = NPOLY * p.Gp / p.tp;
+  const n = (p.npts % 2 === 0) ? p.npts + 1 : p.npts;
+  const halfL = p.L / 2;
+  const x = Array.from({length:n}, (_,i)=>-halfL + i * p.L / (n - 1));
+  const dx = x[1]-x[0];
+  const ub = x.map(xi => eps0 * xi);
+
+  const nunk = 1 + NPOLY;
+  const A = Array.from({length:n}, ()=>makeZero(nunk));
+  const B = Array.from({length:n}, ()=>makeZero(nunk));
+  const C = Array.from({length:n}, ()=>makeZero(nunk));
+  const d = Array.from({length:n}, ()=>Array(nunk).fill(0));
+
+  const ctt = p.Et * p.tt / (dx*dx);
+  const cpp = p.Ep * tps / (dx*dx);
+
+  for(let i=0;i<n;i++){
+    if(i===0){ B[i]=identity(nunk); C[i]=scale(identity(nunk), -1); continue; }
+    if(i===n-1){ B[i]=identity(nunk); A[i]=scale(identity(nunk), -1); continue; }
+
+    // top metal
+    A[i][0][0] = ctt;
+    B[i][0][0] = -2*ctt - k1;
+    C[i][0][0] = ctt;
+    B[i][0][1] = k1;
+
+    // polymer sublayers 1..NPOLY
+    for(let j=1;j<=NPOLY;j++){
+      A[i][j][j] = cpp;
+      C[i][j][j] = cpp;
+      let diag = -2*cpp;
+      if(j===1){ diag -= k1 + kp; B[i][j][0] = k1; B[i][j][2] = kp; }
+      else if(j===NPOLY){ diag -= kp + k2; B[i][j][j-1] = kp; d[i][j] = -k2 * ub[i]; }
+      else { diag -= 2*kp; B[i][j][j-1] = kp; B[i][j][j+1] = kp; }
+      B[i][j][j] = diag;
+    }
+  }
+
+  const Cp = new Array(n);
+  const dp = new Array(n);
+  let Binv = invert(B[0]);
+  Cp[0] = mul(Binv, C[0]);
+  dp[0] = mulv(Binv, d[0]);
+
+  for(let i=1;i<n;i++){
+    const denom = sub(B[i], mul(A[i], Cp[i-1]));
+    const rhs = subv(d[i], mulv(A[i], dp[i-1]));
+    Binv = invert(denom);
+    Cp[i] = (i<n-1) ? mul(Binv, C[i]) : makeZero(nunk);
+    dp[i] = mulv(Binv, rhs);
+  }
+
+  const u = new Array(n);
+  u[n-1] = dp[n-1];
+  for(let i=n-2;i>=0;i--) u[i] = subv(dp[i], mulv(Cp[i], u[i+1]));
+
+  const ut = u.map(v=>v[0]);
+  const ups = Array.from({length:NPOLY}, (_,j)=>u.map(v=>v[j+1]));
+
+  function grad(arr){
+    const g = new Array(arr.length).fill(0);
+    g[0] = 0;
+    g[arr.length-1] = 0;
+    for(let i=1;i<arr.length-1;i++) g[i] = (arr[i+1]-arr[i-1])/(2*dx);
+    return g;
+  }
+
+  const et = grad(ut);
+  const epsPoly = ups.map(grad);
+  const eb = new Array(n).fill(eps0);
+
+  const tau1 = ut.map((v,i)=>k1*(v-ups[0][i]));
+  const tauInt = Array.from({length:NPOLY-1}, (_,j)=>ups[j].map((v,i)=>kp*(v-ups[j+1][i])));
+  const tau2 = ups[NPOLY-1].map((v,i)=>k2*(v-ub[i]));
+
+  const slip1 = ut.map((v,i)=>v-ups[0][i]);
+  const slipInt = Array.from({length:NPOLY-1}, (_,j)=>ups[j].map((v,i)=>v-ups[j+1][i]));
+  const slip2 = ups[NPOLY-1].map((v,i)=>v-ub[i]);
+
+  const sigt = et.map(v=>p.Et*v);
+  const sigPoly = epsPoly.map(ep=>ep.map(v=>p.Ep*v));
+  const sigb = eb.map(v=>p.Eb*v);
+
+  const mid = Math.floor(n/2);
+  const maxAbs = arr => Math.max(...arr.map(v=>Math.abs(v)));
+  const avg = arr => arr.reduce((s,v)=>s+v,0)/arr.length;
+  const xRangeMM = [toMM(x[0]), toMM(x[x.length-1])];
+  const dLt = ut[n-1]-ut[0];
+  const dLp = ups.map(up=>up[n-1]-up[0]);
+  const dLb = ub[n-1]-ub[0];
+  const epsAvgPoly = dLp.map(v=>v/p.L);
+  const nuIso = p.Ep/(2*p.Gp) - 1;
+  const nuIsoOK = nuIso > -1 && nuIso < 0.5;
+  const endStrainsPoly = epsPoly.map(ep=>Math.max(Math.abs(ep[0]), Math.abs(ep[n-1])));
+  const endStrainTop = Math.max(Math.abs(et[0]), Math.abs(et[n-1]));
+  const orderingCentre = [];
+  for(let j=0;j<NPOLY-1;j++) orderingCentre.push(Math.abs(epsPoly[j+1][mid]) + 1e-18 >= Math.abs(epsPoly[j][mid]));
+  const symmetryInternal = tauInt.map(t=>Math.abs(t[0] + t[n-1]));
+
+  return {
+    p, x, ut, ups, ub, et, epsPoly, eb,
+    tau1, tauInt, tau2, slip1, slipInt, slip2,
+    sigt, sigPoly, sigb,
+    eps0, k1, kp, k2, tps,
+    etCentre: et[mid], ebCentre: eb[mid],
+    epsPolyCentre: epsPoly.map(ep=>ep[mid]),
+    tau1Centre: tau1[mid], tauIntCentre: tauInt.map(t=>t[mid]), tau2Centre: tau2[mid],
+    tau1Max: maxAbs(tau1), tauIntMax: tauInt.map(maxAbs), tau2Max: maxAbs(tau2),
+    sigtMax: maxAbs(sigt), sigPolyMax: sigPoly.map(maxAbs), sigbMax: maxAbs(sigb),
+    slip1Max: maxAbs(slip1), slipIntMax: slipInt.map(maxAbs), slip2Max: maxAbs(slip2),
+    dLt, dLp, dLb,
+    epsAvg_t: dLt / p.L, epsAvgPoly, epsAvg_b: dLb / p.L,
+    ratioTop: eps0===0 ? 0 : et[mid]/eps0,
+    ratioPoly: epsPoly.map(ep=>eps0===0?0:ep[mid]/eps0),
+    endStrainTop, endStrainsPoly,
+    symmetryTau1: Math.abs(tau1[0] + tau1[n-1]),
+    symmetryInternal,
+    symmetryTau2: Math.abs(tau2[0] + tau2[n-1]),
+    orderingOK: orderingCentre.every(Boolean),
+    orderingCentre,
+    xRangeMM,
+    nuIso, nuIsoOK,
+    meanPolyCentreRatio: avg(epsPoly.map(ep=>eps0===0?0:ep[mid]/eps0))
+  };
+}
+
+function commonLayout(title,yTitle,xRange){
+  return {
+    title:{text:title,font:{size:18}},
+    margin:{l:72,r:20,t:100,b:82},
+    paper_bgcolor:'#ffffff', plot_bgcolor:'#ffffff',
+    xaxis:{title:'Position along bonded strip, x (mm)', range:xRange, gridcolor:'#e5edf6', zeroline:false, tickformat:'.2f'},
+    yaxis:{title:yTitle, gridcolor:'#e5edf6'},
+    legend:{orientation:'h', x:0, y:-0.26},
+    font:{size:14}
+  };
+}
+
+function drawPlots(r){
+  const xmm=r.x.map(toMM);
+  const xRange=r.xRangeMM;
+
+  const strainTraces = [
+    {x:xmm,y:r.eb.map(pct),mode:'lines',name:'Bottom metal strain, εb',line:{width:4}},
+    ...r.epsPoly.map((ep,j)=>(
+      {x:xmm,y:ep.map(pct),mode:'lines',name:`Polymer sublayer ${j+1} strain, εp${j+1}`,line:{width:(j===0||j===NPOLY-1)?4:2,dash:dashForIndex(j+1,NPOLY)},visible:visibleDefaultPoly(j+1)}
+    )),
+    {x:xmm,y:r.et.map(pct),mode:'lines',name:'Top metal strain, εt',line:{width:4}}
+  ];
+  Plotly.newPlot('plotStrain', strainTraces, commonLayout('Local strain in all solid layers','Strain (%)',xRange), {responsive:true, displaylogo:false});
+
+  const stress = [
+    {x:xmm,y:r.sigt.map(toMPa),mode:'lines',name:'Top metal stress, σt',line:{width:4}},
+    ...r.sigPoly.map((sp,j)=>(
+      {x:xmm,y:sp.map(toMPa),mode:'lines',name:`Polymer sublayer ${j+1} stress, σp${j+1}`,line:{width:(j===0||j===NPOLY-1)?4:2,dash:dashForIndex(j+1,NPOLY)},visible:visibleDefaultPoly(j+1)}
+    )),
+    {x:xmm,y:r.sigb.map(toMPa),mode:'lines',name:'Bottom metal stress, σb',line:{width:4}}
+  ];
+  if(r.p.sigYt>0){
+    stress.push({x:xRange,y:[toMPa(r.p.sigYt),toMPa(r.p.sigYt)],mode:'lines',name:'Top metal yield marker',line:{width:2,dash:'dot'}});
+    stress.push({x:xRange,y:[-toMPa(r.p.sigYt),-toMPa(r.p.sigYt)],mode:'lines',showlegend:false,line:{width:2,dash:'dot'}});
+  }
+  if(r.p.sigYb>0){
+    stress.push({x:xRange,y:[toMPa(r.p.sigYb),toMPa(r.p.sigYb)],mode:'lines',name:'Bottom metal yield marker',line:{width:2,dash:'dashdot'}});
+    stress.push({x:xRange,y:[-toMPa(r.p.sigYb),-toMPa(r.p.sigYb)],mode:'lines',showlegend:false,line:{width:2,dash:'dashdot'}});
+  }
+  Plotly.newPlot('plotStress', stress, commonLayout('Axial normal stress in the solid layers','Stress (MPa)',xRange), {responsive:true, displaylogo:false});
+
+  const tau = [
+    {x:xmm,y:r.tau1.map(toMPa),mode:'lines',name:'Upper adhesive shear, τ1',line:{width:4}},
+    ...r.tauInt.map((ti,j)=>(
+      {x:xmm,y:ti.map(toMPa),mode:'lines',name:`Internal polymer shear, τp${j+1}${j+2}`,line:{width:(j===0||j===NPOLY-2)?4:2,dash:dashForIndex(j+1,NPOLY-1)},visible:visibleDefaultInterface(j+1)}
+    )),
+    {x:xmm,y:r.tau2.map(toMPa),mode:'lines',name:'Lower adhesive shear, τ2',line:{width:4,dash:'dash'}}
+  ];
+  if(r.p.tauAllow1>0){
+    tau.push({x:xRange,y:[toMPa(r.p.tauAllow1),toMPa(r.p.tauAllow1)],mode:'lines',name:'Upper allowable marker',line:{width:2,dash:'dot'}});
+    tau.push({x:xRange,y:[-toMPa(r.p.tauAllow1),-toMPa(r.p.tauAllow1)],mode:'lines',showlegend:false,line:{width:2,dash:'dot'}});
+  }
+  if(r.p.tauAllow2>0){
+    tau.push({x:xRange,y:[toMPa(r.p.tauAllow2),toMPa(r.p.tauAllow2)],mode:'lines',name:'Lower allowable marker',line:{width:2,dash:'dashdot'}});
+    tau.push({x:xRange,y:[-toMPa(r.p.tauAllow2),-toMPa(r.p.tauAllow2)],mode:'lines',showlegend:false,line:{width:2,dash:'dashdot'}});
+  }
+  Plotly.newPlot('plotTau', tau, commonLayout('Adhesive and internal polymer shear stresses','Shear stress (MPa)',xRange), {responsive:true, displaylogo:false});
+
+  const dispTraces = [
+    {x:xmm,y:r.ub.map(toMM),mode:'lines',name:'Bottom metal displacement, ub',line:{width:4}},
+    ...r.ups.map((up,j)=>(
+      {x:xmm,y:up.map(toMM),mode:'lines',name:`Polymer sublayer ${j+1} displacement, up${j+1}`,line:{width:(j===0||j===NPOLY-1)?4:2,dash:dashForIndex(j+1,NPOLY)},visible:visibleDefaultPoly(j+1)}
+    )),
+    {x:xmm,y:r.ut.map(toMM),mode:'lines',name:'Top metal displacement, ut',line:{width:4}}
+  ];
+  Plotly.newPlot('plotDisp', dispTraces, commonLayout('Displacement inside the bonded region','Displacement (mm)',xRange), {responsive:true, displaylogo:false});
+
+  const slipTraces = [
+    {x:xmm,y:r.slip1.map(toUM),mode:'lines',name:'Upper slip, ut - up1',line:{width:4}},
+    ...r.slipInt.map((si,j)=>(
+      {x:xmm,y:si.map(toUM),mode:'lines',name:`Internal slip, up${j+1} - up${j+2}`,line:{width:(j===0||j===NPOLY-2)?4:2,dash:dashForIndex(j+1,NPOLY-1)},visible:visibleDefaultInterface(j+1)}
+    )),
+    {x:xmm,y:r.slip2.map(toUM),mode:'lines',name:'Lower slip, up7 - ub',line:{width:4,dash:'dash'}}
+  ];
+  Plotly.newPlot('plotSlip', slipTraces, commonLayout('Interfacial and internal slips','Slip (µm)',xRange), {responsive:true, displaylogo:false});
+
+  const normTraces = [
+    {x:xmm,y:r.et.map(v=>r.eps0===0?0:v/r.eps0),mode:'lines',name:'εt / ε0',line:{width:4}},
+    ...r.epsPoly.map((ep,j)=>(
+      {x:xmm,y:ep.map(v=>r.eps0===0?0:v/r.eps0),mode:'lines',name:`εp${j+1} / ε0`,line:{width:(j===0||j===NPOLY-1)?4:2,dash:dashForIndex(j+1,NPOLY)},visible:visibleDefaultPoly(j+1)}
+    )),
+    {x:xRange,y:[1,1],mode:'lines',name:'Bottom-metal reference = 1',line:{width:2,dash:'dot'}}
+  ];
+  Plotly.newPlot('plotNorm', normTraces, commonLayout('Normalised strain transfer','Normalised strain (-)',xRange), {responsive:true, displaylogo:false});
+}
+
+function drawGeometryInfo(r){
+  const x0=-toMM(r.p.L)/2, x1=toMM(r.p.L)/2;
+  document.getElementById('currentGeometry').innerHTML =
+    `<strong>Current values interpreted by the app</strong><br>
+     Ls = ${fmt(toMM(r.p.Ls),3)} mm, L = ${fmt(toMM(r.p.L),3)} mm, so the plotted x-axis runs from ${fmt(x0,3)} mm to ${fmt(x1,3)} mm.<br>
+     The prescribed bottom-metal strain is ε0 = ${fmt(pct(r.eps0),4)} %.<br>
+     The polymer total thickness is split internally into seven equal sublayers of ${fmt(toUM(r.tps),3)} µm each.<br>
+     Width b = ${fmt(toMM(r.p.b),3)} mm is currently unused in the present per-unit-width equations.`;
+}
+
+function drawSchematic(r){
+  const svg=document.getElementById('schematic');
+  const W=980, m=70, x0=m, x1=W-m, fullW=x1-x0;
+  const frac=Math.min(1, r.p.L/r.p.Ls);
+  const bondW=fullW*frac;
+  const bx0=(W-bondW)/2;
+  let y=56;
+  const elems=[];
+  elems.push(`<text x="${x0}" y="30" font-size="16" font-weight="700" fill="#1f2a36">Current geometry sketch</text>`);
+  elems.push(`<rect x="${bx0}" y="${y}" width="${bondW}" height="12" rx="3" fill="#b8b8be" stroke="#6a6a6e"></rect>`);
+  elems.push(`<text x="${bx0+6}" y="${y-5}" font-size="13" fill="#1f2a36">Top metal</text>`);
+  y += 18;
+  elems.push(`<rect x="${bx0}" y="${y}" width="${bondW}" height="9" rx="2" fill="#f3d7a4" stroke="#be8b2c"></rect>`);
+  elems.push(`<text x="${bx0+6}" y="${y-3}" font-size="13" fill="#1f2a36">Adhesive 1</text>`);
+  y += 14;
+  for(let j=1;j<=NPOLY;j++){
+    const fill = ['#e3edf8','#dbe7f5','#d3e1f2','#cadef0','#c1d8ed','#b8d2ea','#afcce8'][j-1];
+    elems.push(`<rect x="${bx0}" y="${y}" width="${bondW}" height="10" rx="2" fill="${fill}" stroke="#6f90b3"></rect>`);
+    elems.push(`<text x="${bx0+6}" y="${y+9}" font-size="12" fill="#1f2a36">Polymer sublayer ${j}</text>`);
+    y += 13;
+  }
+  elems.push(`<rect x="${bx0}" y="${y}" width="${bondW}" height="9" rx="2" fill="#f3d7a4" stroke="#be8b2c"></rect>`);
+  elems.push(`<text x="${bx0+6}" y="${y+15}" font-size="13" fill="#1f2a36">Adhesive 2</text>`);
+  y += 13;
+  elems.push(`<rect x="${bx0}" y="${y}" width="${bondW}" height="12" rx="3" fill="#9aa3ad" stroke="#5e6770"></rect>`);
+  elems.push(`<text x="${bx0+6}" y="${y+28}" font-size="13" fill="#1f2a36">Bottom metal, imposed strain</text>`);
+
+  elems.push(`<line x1="${x0}" y1="315" x2="${x1}" y2="315" stroke="#aeb9c5" stroke-width="2"></line>`);
+  elems.push(`<line x1="${x0}" y1="309" x2="${x0}" y2="321" stroke="#aeb9c5" stroke-width="2"></line>`);
+  elems.push(`<line x1="${x1}" y1="309" x2="${x1}" y2="321" stroke="#aeb9c5" stroke-width="2"></line>`);
+  elems.push(`<text x="${W/2-82}" y="338" font-size="13" fill="#1f2a36">Reference length Ls</text>`);
+
+  elems.push(`<line x1="${bx0}" y1="284" x2="${bx0+bondW}" y2="284" stroke="#aeb9c5" stroke-width="2"></line>`);
+  elems.push(`<line x1="${bx0}" y1="280" x2="${bx0}" y2="288" stroke="#aeb9c5" stroke-width="2"></line>`);
+  elems.push(`<line x1="${bx0+bondW}" y1="280" x2="${bx0+bondW}" y2="288" stroke="#aeb9c5" stroke-width="2"></line>`);
+  elems.push(`<text x="${bx0+bondW/2-42}" y="277" font-size="13" fill="#1f2a36">Bonded length L</text>`);
+  svg.innerHTML = elems.join('');
+}
+
+function renderChecks(r){
+  const topOK = r.p.sigYt>0 ? r.sigtMax<=r.p.sigYt : true;
+  const upAdhOK = r.p.tauAllow1>0 ? r.tau1Max<=r.p.tauAllow1 : true;
+  const lowAdhOK = r.p.tauAllow2>0 ? r.tau2Max<=r.p.tauAllow2 : true;
+  const botOK = r.p.sigYb>0 ? r.sigbMax<=r.p.sigYb : true;
+  const endTol = Math.max(Math.abs(r.eps0), 1e-12);
+  const endOK = r.endStrainTop <= 1e-6*endTol && r.endStrainsPoly.every(v=>v <= 1e-6*endTol);
+  const symTol = Math.max(r.tau1Max, r.tau2Max, ...r.tauIntMax, 1e-12) * 1e-8;
+  const symmetryOK = r.symmetryTau1<=symTol && r.symmetryTau2<=symTol && r.symmetryInternal.every(v=>v<=symTol);
+
+  const status = [];
+  status.push(`<div class="status ${topOK?'ok':'bad'}">Top metal check: max |σt| = ${fmt(toMPa(r.sigtMax),3)} MPa ${topOK?'is below':'exceeds'} σy,t = ${fmt(toMPa(r.p.sigYt),3)} MPa.</div>`);
+  status.push(`<div class="status ${upAdhOK?'ok':'bad'}">Upper adhesive check: max |τ1| = ${fmt(toMPa(r.tau1Max),3)} MPa ${upAdhOK?'is below':'exceeds'} τallow,1 = ${fmt(toMPa(r.p.tauAllow1),3)} MPa.</div>`);
+  status.push(`<div class="status ${lowAdhOK?'ok':'bad'}">Lower adhesive check: max |τ2| = ${fmt(toMPa(r.tau2Max),3)} MPa ${lowAdhOK?'is below':'exceeds'} τallow,2 = ${fmt(toMPa(r.p.tauAllow2),3)} MPa.</div>`);
+  status.push(`<div class="status ${botOK?'ok':'warn'}">Bottom metal implied stress: |σb| = ${fmt(toMPa(r.sigbMax),3)} MPa ${botOK?'is below':'relative to'} σy,b = ${fmt(toMPa(r.p.sigYb),3)} MPa. This is a marker only because the bottom-layer strain is imposed.</div>`);
+  status.push(`<div class="status ${endOK?'ok':'warn'}">Boundary check: the free-end approximation is assessed using end strain, not end displacement. Current end-strain magnitudes are εt,end = ${fmt(pct(r.endStrainTop),6)} %, polymer max end strain = ${fmt(pct(Math.max(...r.endStrainsPoly)),6)} %.</div>`);
+  status.push(`<div class="status ${symmetryOK?'ok':'warn'}">Symmetry check: centre and end antisymmetry of adhesive and internal shears are ${symmetryOK?'consistent':'not fully consistent'} with symmetric loading within a tight numerical tolerance.</div>`);
+  status.push(`<div class="status ${r.nuIsoOK?'ok':'warn'}">Polymer modulus consistency: implied isotropic Poisson ratio from Ep and Gp is ν = ${fmt(r.nuIso,4)}. ${r.nuIsoOK?'This lies inside':'This lies outside'} the isotropic linear-elastic range (-1, 0.5).</div>`);
+  status.push(`<div class="status warn">Model scope note: this remains a 1D axial shear-lag model. It does not include peel stress, bending, viscoelasticity, damage, or full through-thickness continuum deformation.</div>`);
+  document.getElementById('statusBox').innerHTML = status.join('');
+
+  const checks = [
+    ['Top-metal end strain magnitude', `${fmt(pct(r.endStrainTop),6)} %`],
+    ['Maximum polymer end strain magnitude', `${fmt(pct(Math.max(...r.endStrainsPoly)),6)} %`],
+    ['Upper shear at centre', `${fmt(toMPa(r.tau1Centre),6)} MPa`],
+    ['Internal shear τp12 at centre', `${fmt(toMPa(r.tauIntCentre[0]),6)} MPa`],
+    [`Internal shear τp${NPOLY-1}${NPOLY} at centre`, `${fmt(toMPa(r.tauIntCentre[NPOLY-2]),6)} MPa`],
+    ['Lower shear at centre', `${fmt(toMPa(r.tau2Centre),6)} MPa`],
+    ['Centre top transfer ratio εt(0)/ε0', `${fmt(r.ratioTop,6)}`],
+    ['Centre polymer-top ratio εp1(0)/ε0', `${fmt(r.ratioPoly[0],6)}`],
+    ['Centre polymer-middle ratio εp4(0)/ε0', `${fmt(r.ratioPoly[3],6)}`],
+    ['Centre polymer-bottom ratio εp7(0)/ε0', `${fmt(r.ratioPoly[6],6)}`],
+    ['Implied isotropic Poisson ratio ν', `${fmt(r.nuIso,6)}`],
+    ['Monotonic centre transfer ordering', `${r.orderingOK ? 'Yes' : 'No'}`]
+  ];
+  document.getElementById('checkGrid').innerHTML = checks.map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+}
+
+function renderSummary(r){
+  const items = [
+    ['Imposed bottom-metal strain, ε0', `${fmt(pct(r.eps0),4)} %`],
+    ['Upper adhesive stiffness, k1', `${fmt(r.k1,4)} Pa/m`],
+    ['Internal polymer coupling, kp', `${fmt(r.kp,4)} Pa/m`],
+    ['Lower adhesive stiffness, k2', `${fmt(r.k2,4)} Pa/m`],
+    ['Polymer sublayer thickness, tp/7', `${fmt(toUM(r.tps),4)} µm`],
+    ['Centre top-metal strain, εt(0)', `${fmt(pct(r.etCentre),4)} %`],
+    ['Centre polymer-top strain, εp1(0)', `${fmt(pct(r.epsPolyCentre[0]),4)} %`],
+    ['Centre polymer-middle strain, εp4(0)', `${fmt(pct(r.epsPolyCentre[3]),4)} %`],
+    ['Centre polymer-bottom strain, εp7(0)', `${fmt(pct(r.epsPolyCentre[6]),4)} %`],
+    ['Maximum top-metal stress', `${fmt(toMPa(r.sigtMax),4)} MPa`],
+    ['Maximum first internal polymer shear τp12', `${fmt(toMPa(r.tauIntMax[0]),4)} MPa`],
+    ['Maximum last internal polymer shear τp67', `${fmt(toMPa(r.tauIntMax[5]),4)} MPa`],
+    ['Maximum upper slip', `${fmt(toUM(r.slip1Max),4)} µm`],
+    ['Maximum lower slip', `${fmt(toUM(r.slip2Max),4)} µm`]
+  ];
+  document.getElementById('summaryGrid').innerHTML = items.map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+}
+
+function buildCopyText(r){
+  const x0=-toMM(r.p.L)/2, x1=toMM(r.p.L)/2;
+  const lines = [
+    'Adhesive Shear-Lag Model, polymer 7-sublayer imposed-bottom-metal version',
+    '',
+    `Ls\t${fmt(toMM(r.p.Ls),4)}\tmm`,
+    `L\t${fmt(toMM(r.p.L),4)}\tmm`,
+    `Expected plotted x-range\t${fmt(x0,4)} to ${fmt(x1,4)}\tmm`,
+    `Imposed strain ε0\t${fmt(pct(r.eps0),6)}\t%`,
+    `Width b\t${fmt(toMM(r.p.b),6)}\tmm`,
+    `Width use note\tretained as input but currently unused in this per-unit-width model`,
+    `Upper adhesive stiffness k1\t${fmt(r.k1,6)}\tPa/m`,
+    `Internal polymer coupling kp\t${fmt(r.kp,6)}\tPa/m`,
+    `Lower adhesive stiffness k2\t${fmt(r.k2,6)}\tPa/m`,
+    `Polymer sublayer thickness\t${fmt(toUM(r.tps),6)}\tµm`,
+    `Implied isotropic Poisson ratio from Ep and Gp\t${fmt(r.nuIso,6)}\t-`,
+    ''
+  ];
+  lines.push('Centre strains');
+  lines.push(`Top metal εt(0)\t${fmt(pct(r.etCentre),6)}\t%`);
+  r.epsPolyCentre.forEach((v,j)=>lines.push(`Polymer sublayer ${j+1} εp${j+1}(0)\t${fmt(pct(v),6)}\t%`));
+  lines.push('Bottom metal εb(0)\t' + `${fmt(pct(r.ebCentre),6)}\t%`);
+  lines.push('');
+  lines.push('Maximum stresses and shears');
+  lines.push(`Maximum top-metal stress\t${fmt(toMPa(r.sigtMax),6)}\tMPa`);
+  r.sigPolyMax.forEach((v,j)=>lines.push(`Maximum polymer stress σp${j+1}\t${fmt(toMPa(v),6)}\tMPa`));
+  lines.push(`Maximum upper adhesive shear\t${fmt(toMPa(r.tau1Max),6)}\tMPa`);
+  r.tauIntMax.forEach((v,j)=>lines.push(`Maximum internal polymer shear τp${j+1}${j+2}\t${fmt(toMPa(v),6)}\tMPa`));
+  lines.push(`Maximum lower adhesive shear\t${fmt(toMPa(r.tau2Max),6)}\tMPa`);
+  lines.push('');
+  lines.push('Layer total elongation over bonded length');
+  lines.push(`Top metal ΔLt\t${fmt(toMM(r.dLt),6)}\tmm`);
+  r.dLp.forEach((v,j)=>lines.push(`Polymer sublayer ${j+1} ΔLp${j+1}\t${fmt(toMM(v),6)}\tmm`));
+  lines.push(`Bottom metal ΔLb\t${fmt(toMM(r.dLb),6)}\tmm`);
+  lines.push('');
+  lines.push('Average strain over bonded length');
+  lines.push(`Top metal εt,avg\t${fmt(pct(r.epsAvg_t),6)}\t%`);
+  r.epsAvgPoly.forEach((v,j)=>lines.push(`Polymer sublayer ${j+1} εp${j+1},avg\t${fmt(pct(v),6)}\t%`));
+  lines.push(`Bottom metal εb,avg\t${fmt(pct(r.epsAvg_b),6)}\t%`);
+  lines.push('');
+  lines.push('Strain transfer efficiency at centre');
+  lines.push(`Top metal εt(0) / ε0\t${fmt(r.ratioTop,6)}`);
+  r.ratioPoly.forEach((v,j)=>lines.push(`Polymer sublayer ${j+1} εp${j+1}(0) / ε0\t${fmt(v,6)}`));
+  lines.push('');
+  lines.push('Automatic checks');
+  lines.push(`Top-metal end strain magnitude\t${fmt(pct(r.endStrainTop),6)}\t%`);
+  lines.push(`Maximum polymer end strain magnitude\t${fmt(pct(Math.max(...r.endStrainsPoly)),6)}\t%`);
+  lines.push(`Upper shear at centre\t${fmt(toMPa(r.tau1Centre),6)}\tMPa`);
+  r.tauIntCentre.forEach((v,j)=>lines.push(`Internal shear τp${j+1}${j+2} at centre\t${fmt(toMPa(v),6)}\tMPa`));
+  lines.push(`Lower shear at centre\t${fmt(toMPa(r.tau2Centre),6)}\tMPa`);
+  document.getElementById('copyBox').value = lines.join('\n');
+}
+
+let csvText='';
+function buildCSV(r){
+  const headers=['x_mm','ut_mm'];
+  for(let j=1;j<=NPOLY;j++) headers.push(`up${j}_mm`);
+  headers.push('ub_mm','slip1_um');
+  for(let j=1;j<NPOLY;j++) headers.push(`slipp${j}${j+1}_um`);
+  headers.push('slip2_um','eps_t_percent');
+  for(let j=1;j<=NPOLY;j++) headers.push(`eps_p${j}_percent`);
+  headers.push('eps_b_percent','sigma_t_MPa');
+  for(let j=1;j<=NPOLY;j++) headers.push(`sigma_p${j}_MPa`);
+  headers.push('sigma_b_MPa','tau1_MPa');
+  for(let j=1;j<NPOLY;j++) headers.push(`taup${j}${j+1}_MPa`);
+  headers.push('tau2_MPa','eps_t_over_eps0');
+  for(let j=1;j<=NPOLY;j++) headers.push(`eps_p${j}_over_eps0`);
+  const lines=[headers.join(',')];
+  for(let i=0;i<r.x.length;i++){
+    const row=[fmt(toMM(r.x[i]),8), fmt(toMM(r.ut[i]),8)];
+    r.ups.forEach(up=>row.push(fmt(toMM(up[i]),8)));
+    row.push(fmt(toMM(r.ub[i]),8), fmt(toUM(r.slip1[i]),8));
+    r.slipInt.forEach(si=>row.push(fmt(toUM(si[i]),8)));
+    row.push(fmt(toUM(r.slip2[i]),8), fmt(pct(r.et[i]),8));
+    r.epsPoly.forEach(ep=>row.push(fmt(pct(ep[i]),8)));
+    row.push(fmt(pct(r.eb[i]),8), fmt(toMPa(r.sigt[i]),8));
+    r.sigPoly.forEach(sp=>row.push(fmt(toMPa(sp[i]),8)));
+    row.push(fmt(toMPa(r.sigb[i]),8), fmt(toMPa(r.tau1[i]),8));
+    r.tauInt.forEach(t=>row.push(fmt(toMPa(t[i]),8)));
+    row.push(fmt(toMPa(r.tau2[i]),8), fmt(r.eps0===0?0:r.et[i]/r.eps0,8));
+    r.epsPoly.forEach(ep=>row.push(fmt(r.eps0===0?0:ep[i]/r.eps0,8)));
+    lines.push(row.join(','));
+  }
+  csvText=lines.join('\n');
+}
+
+function downloadText(name,text,type='text/plain;charset=utf-8'){ const blob=new Blob([text],{type}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); URL.revokeObjectURL(a.href); }
+
+let latest=null;
+function runModel(){
+  const p=getInputs();
+  const errs=validate(p);
+  const status=document.getElementById('inputStatus');
+  if(errs.length){
+    status.textContent=errs.join(' ');
+    status.style.color='#9d1428';
+    return;
+  }
+  try{
+    const r=compute(p);
+    latest=r;
+    status.textContent='Inputs accepted.';
+    status.style.color='#116d34';
+    drawGeometryInfo(r);
+    drawSchematic(r);
+    renderChecks(r);
+    renderSummary(r);
+    drawPlots(r);
+    buildCopyText(r);
+    buildCSV(r);
+  }catch(e){
+    status.textContent = e.message;
+    status.style.color='#9d1428';
+  }
+}
+
+function loadExample(){
+  const set=(id,v)=>document.getElementById(id).value=v;
+  set('Ls',80); document.getElementById('Ls_unit').value='mm';
+  set('dLs',0.8); document.getElementById('dLs_unit').value='mm';
+  set('b',10); document.getElementById('b_unit').value='mm';
+  set('L',30); document.getElementById('L_unit').value='mm';
+  set('tt',20); document.getElementById('tt_unit').value='um';
+  set('Et',110); document.getElementById('Et_unit').value='GPa';
+  set('sigYt',250); document.getElementById('sigYt_unit').value='MPa';
+  set('ta1',25); document.getElementById('ta1_unit').value='um';
+  set('Ga1',400); document.getElementById('Ga1_unit').value='MPa';
+  set('tauAllow1',15); document.getElementById('tauAllow1_unit').value='MPa';
+  set('tp',125); document.getElementById('tp_unit').value='um';
+  set('Ep',2.5); document.getElementById('Ep_unit').value='GPa';
+  set('Gp',0.9); document.getElementById('Gp_unit').value='GPa';
+  set('ta2',25); document.getElementById('ta2_unit').value='um';
+  set('Ga2',400); document.getElementById('Ga2_unit').value='MPa';
+  set('tauAllow2',15); document.getElementById('tauAllow2_unit').value='MPa';
+  set('tb',20); document.getElementById('tb_unit').value='um';
+  set('Eb',110); document.getElementById('Eb_unit').value='GPa';
+  set('sigYb',250); document.getElementById('sigYb_unit').value='MPa';
+  set('npts',401);
+  runModel();
+}
+
+document.getElementById('runBtn').addEventListener('click', runModel);
+document.getElementById('exampleBtn').addEventListener('click', loadExample);
+document.getElementById('csvBtn').addEventListener('click', ()=>{ if(!latest) runModel(); if(latest) downloadText('polymer_7_sublayer_shear_lag_results.csv', csvText, 'text/csv;charset=utf-8'); });
+document.getElementById('copyBtn').addEventListener('click', async ()=>{ if(!latest) runModel(); const txt=document.getElementById('copyBox').value; try{ await navigator.clipboard.writeText(txt); document.getElementById('inputStatus').textContent='Summary copied.'; document.getElementById('inputStatus').style.color='#116d34'; }catch(e){ document.getElementById('copyBox').select(); document.execCommand('copy'); } });
+document.getElementById('pngBtn').addEventListener('click', ()=>{ if(!latest) runModel(); if(latest) Plotly.downloadImage('plotStrain',{format:'png',filename:'polymer_7_sublayer_shear_lag_strain_chart',width:1200,height:700,scale:2}); });
+window.addEventListener('resize', ()=>{ if(latest) drawPlots(latest); });
+loadExample();
+</script>
+</body>
+</html>
