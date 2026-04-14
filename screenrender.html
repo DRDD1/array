@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Screen Printing Halftone Mask Generator v3</title>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --panel: #ffffff;
+      --text: #161616;
+      --muted: #5f6368;
+      --border: #d9dde3;
+      --soft: #f8fafc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      margin: 0 0 8px 0;
+      font-size: 1.8rem;
+    }
+    .intro {
+      color: var(--muted);
+      line-height: 1.5;
+      margin-bottom: 18px;
+      max-width: 1150px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 395px 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .sticky { position: sticky; top: 16px; }
+    .section {
+      padding-bottom: 14px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #eceff2;
+    }
+    .section:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+    label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .hint {
+      color: var(--muted);
+      font-size: 0.93rem;
+      line-height: 1.4;
+      margin-top: 6px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 100px;
+      gap: 10px;
+      align-items: center;
+    }
+    .value {
+      text-align: right;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    input[type="file"], input[type="range"], input[type="number"], select, button {
+      width: 100%;
+    }
+    input[type="number"], select, button {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font-size: 0.98rem;
+    }
+    input[type="range"] { cursor: pointer; }
+    button {
+      cursor: pointer;
+      font-weight: 700;
+      background: #111;
+      color: white;
+      border: none;
+    }
+    button.secondary {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .checks {
+      display: grid;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .check {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .check input { width: auto; transform: scale(1.05); }
+    .check label { margin: 0; font-weight: 600; }
+    .metrics-grid {
+      display: grid;
+      gap: 8px;
+    }
+    .metric {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 1px solid #eef1f4;
+      font-size: 0.95rem;
+    }
+    .metric:last-child { border-bottom: none; }
+    .metric span:last-child { font-weight: 700; color: #222; }
+    .helper-box {
+      background: var(--soft);
+      border: 1px solid #eceff2;
+      border-radius: 10px;
+      padding: 12px;
+      margin-top: 10px;
+      line-height: 1.45;
+      font-size: 0.94rem;
+    }
+    .preview-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    .canvas-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .canvas-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .canvas-holder {
+      min-height: 340px;
+      background: #fafbfc;
+      border: 1px dashed #d2d7dd;
+      border-radius: 10px;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: auto;
+    }
+    canvas {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      background: white;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+    .status, .notes {
+      margin-top: 14px;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.95rem;
+    }
+    .notes {
+      background: #fafbfc;
+      border: 1px solid #eceff2;
+      border-radius: 10px;
+      padding: 12px;
+      color: #42474d;
+    }
+    .inline-2 {
+      display: grid;
+      grid-template-columns: 1fr 120px;
+      gap: 10px;
+      align-items: end;
+    }
+    @media (max-width: 1120px) {
+      .grid { grid-template-columns: 1fr; }
+      .sticky { position: static; }
+      .preview-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Screen Printing Halftone Mask Generator v3</h1>
+    <div class="intro">
+      This version adds a print-oriented helper: upload an image, enter the desired physical print size and mesh count, and the app suggests practical screening values. These suggestions are heuristic, aimed at robust screen printing rather than maximum theoretical detail.
+    </div>
+
+    <div class="grid">
+      <div class="panel sticky">
+        <div class="section">
+          <label for="upload">Upload image</label>
+          <input id="upload" type="file" accept="image/*" />
+          <div class="hint">Upload the source image. The app uses the actual pixel size of the image for physical scaling calculations.</div>
+        </div>
+
+        <div class="section">
+          <label for="screenMode">Screening mode</label>
+          <select id="screenMode">
+            <option value="am">AM, ordered halftone</option>
+            <option value="fm">FM, stochastic</option>
+            <option value="blue">Blue-noise style</option>
+          </select>
+          <div class="hint">AM is the safest recommendation for robust screen printing. FM and blue-noise can be useful, but may create finer isolated features.</div>
+        </div>
+
+        <div class="section">
+          <label>Print setup helper</label>
+          <div class="inline-2">
+            <div>
+              <label for="targetHeightCm" style="font-weight:600;">Target image height</label>
+              <input id="targetHeightCm" type="number" min="1" max="200" step="0.1" value="18.0" />
+            </div>
+            <div>
+              <label for="sizeMode" style="font-weight:600;">Input</label>
+              <select id="sizeMode">
+                <option value="height">Height in cm</option>
+                <option value="width">Width in cm</option>
+              </select>
+            </div>
+          </div>
+          <div class="hint">Enter the intended physical print size of the image itself, not the full sheet.</div>
+
+          <div class="inline-2" style="margin-top:10px;">
+            <div>
+              <label for="meshValue" style="font-weight:600;">Screen mesh</label>
+              <input id="meshValue" type="number" min="10" max="500" step="1" value="120" />
+            </div>
+            <div>
+              <label for="meshUnit" style="font-weight:600;">Units</label>
+              <select id="meshUnit">
+                <option value="tcm">t/cm</option>
+                <option value="tpi">tpi</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <label for="safetyMode" style="font-weight:600;">Print priority</label>
+            <select id="safetyMode">
+              <option value="robust">Safe / robust</option>
+              <option value="balanced">Balanced</option>
+              <option value="fine">Finer detail</option>
+            </select>
+          </div>
+
+          <div class="helper-box" id="suggestionBox">
+            Upload an image to generate recommended screening values.
+          </div>
+
+          <div class="actions">
+            <button id="applySuggestedBtn" class="secondary">Apply suggested values</button>
+            <button id="renderBtn">Render mask</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <label for="cellSize">Nominal spacing / cell size</label>
+          <input id="cellSize" type="range" min="2" max="40" step="1" value="5" />
+          <div class="row"><div class="hint">For AM this is the cell size. For FM and blue-noise it is the nominal dot spacing.</div><div class="value" id="cellSizeVal">5 px</div></div>
+        </div>
+
+        <div class="section">
+          <label for="gamma">Tone response</label>
+          <input id="gamma" type="range" min="0.30" max="2.50" step="0.05" value="1.00" />
+          <div class="row"><div class="hint">Lower values darken the image, higher values lighten it</div><div class="value" id="gammaVal">1.00</div></div>
+        </div>
+
+        <div class="section">
+          <label for="minDot">Minimum dot suppression</label>
+          <input id="minDot" type="range" min="0" max="100" step="1" value="8" />
+          <div class="row"><div class="hint">Suppresses tiny isolated marks that may not hold on the screen</div><div class="value" id="minDotVal">8 %</div></div>
+        </div>
+
+        <div class="section">
+          <label for="shape">Dot shape</label>
+          <select id="shape">
+            <option value="circle">Circular</option>
+            <option value="square">Square</option>
+            <option value="diamond">Diamond</option>
+          </select>
+        </div>
+
+        <div class="section">
+          <label for="angle">Screen angle</label>
+          <select id="angle">
+            <option value="45">45°</option>
+            <option value="0">0°</option>
+            <option value="15">15°</option>
+            <option value="30">30°</option>
+            <option value="60">60°</option>
+          </select>
+          <div class="hint">The visible image stays fixed. Only the screening coordinates rotate.</div>
+        </div>
+
+        <div class="section">
+          <label for="jitter">Irregularity strength</label>
+          <input id="jitter" type="range" min="0" max="100" step="1" value="35" />
+          <div class="row"><div class="hint">Used mainly for FM and blue-noise modes</div><div class="value" id="jitterVal">35 %</div></div>
+        </div>
+
+        <div class="section">
+          <label for="maxWidth">Preview/output width limit</label>
+          <input id="maxWidth" type="number" min="200" max="6000" step="50" value="1600" />
+          <div class="hint">The image is scaled down only if wider than this value, preserving aspect ratio.</div>
+        </div>
+
+        <div class="section">
+          <div class="checks">
+            <div class="check"><input id="invert" type="checkbox" /><label for="invert">Invert output</label></div>
+            <div class="check"><input id="useAlphaWhite" type="checkbox" checked /><label for="useAlphaWhite">Treat transparency as white</label></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="actions">
+            <button id="downloadBtn" class="secondary">Download PNG</button>
+            <button id="resetBtn" class="secondary">Load sample</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="metrics-grid">
+            <div class="metric"><span>Output colours</span><span>2 only</span></div>
+            <div class="metric"><span>Image block rotation</span><span>Fixed</span></div>
+            <div class="metric"><span>Intended workflow</span><span>Screen print mask</span></div>
+          </div>
+        </div>
+
+        <div class="notes">
+          Screening suggestions are approximate design rules, not strict guarantees. Actual process limits also depend on thread diameter, open area, emulsion thickness, exposure, washout, and ink behaviour.
+        </div>
+      </div>
+
+      <div>
+        <div class="preview-grid">
+          <div class="canvas-card">
+            <div class="canvas-title">Original</div>
+            <div class="canvas-holder"><canvas id="sourceCanvas"></canvas></div>
+          </div>
+          <div class="canvas-card">
+            <div class="canvas-title">Halftone mask</div>
+            <div class="canvas-holder"><canvas id="outputCanvas"></canvas></div>
+          </div>
+        </div>
+        <div class="panel status" id="status">
+          Load an image, then render the binary mask.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const upload = document.getElementById('upload');
+    const screenMode = document.getElementById('screenMode');
+    const targetHeightCm = document.getElementById('targetHeightCm');
+    const sizeMode = document.getElementById('sizeMode');
+    const meshValue = document.getElementById('meshValue');
+    const meshUnit = document.getElementById('meshUnit');
+    const safetyMode = document.getElementById('safetyMode');
+    const applySuggestedBtn = document.getElementById('applySuggestedBtn');
+
+    const cellSize = document.getElementById('cellSize');
+    const gamma = document.getElementById('gamma');
+    const minDot = document.getElementById('minDot');
+    const shape = document.getElementById('shape');
+    const angle = document.getElementById('angle');
+    const jitter = document.getElementById('jitter');
+    const maxWidth = document.getElementById('maxWidth');
+    const invert = document.getElementById('invert');
+    const useAlphaWhite = document.getElementById('useAlphaWhite');
+    const renderBtn = document.getElementById('renderBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    const cellSizeVal = document.getElementById('cellSizeVal');
+    const gammaVal = document.getElementById('gammaVal');
+    const minDotVal = document.getElementById('minDotVal');
+    const jitterVal = document.getElementById('jitterVal');
+    const suggestionBox = document.getElementById('suggestionBox');
+
+    const sourceCanvas = document.getElementById('sourceCanvas');
+    const outputCanvas = document.getElementById('outputCanvas');
+    const sctx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+    const octx = outputCanvas.getContext('2d', { willReadFrequently: true });
+    const status = document.getElementById('status');
+
+    let currentImage = null;
+    let currentSuggestion = null;
+
+    function updateLabels() {
+      cellSizeVal.textContent = `${cellSize.value} px`;
+      gammaVal.textContent = Number(gamma.value).toFixed(2);
+      minDotVal.textContent = `${minDot.value} %`;
+      jitterVal.textContent = `${jitter.value} %`;
+    }
+
+    function setCanvasBinaryFriendly(ctx) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.webkitImageSmoothingEnabled = false;
+      ctx.mozImageSmoothingEnabled = false;
+      ctx.msImageSmoothingEnabled = false;
+    }
+
+    function fitDimensions(w, h, maxW) {
+      if (w <= maxW) return { w, h };
+      const scale = maxW / w;
+      return { w: Math.round(w * scale), h: Math.round(h * scale) };
+    }
+
+    function drawSampleImage() {
+      const w = 1600;
+      const h = 2133;
+      sourceCanvas.width = w;
+      sourceCanvas.height = h;
+      setCanvasBinaryFriendly(sctx);
+
+      const g = sctx.createLinearGradient(0, 0, w, h);
+      g.addColorStop(0, '#ffffff');
+      g.addColorStop(0.45, '#8b8b8b');
+      g.addColorStop(1, '#111111');
+      sctx.fillStyle = g;
+      sctx.fillRect(0, 0, w, h);
+
+      sctx.fillStyle = 'rgba(255,255,255,0.82)';
+      sctx.beginPath();
+      sctx.arc(460, 600, 360, 0, Math.PI * 2);
+      sctx.fill();
+
+      sctx.fillStyle = 'rgba(0,0,0,0.55)';
+      sctx.fillRect(900, 350, 360, 870);
+
+      sctx.fillStyle = 'rgba(255,255,255,0.85)';
+      sctx.font = 'bold 220px Arial';
+      sctx.fillText('MASK', 230, 1820);
+
+      const img = new Image();
+      img.onload = () => {
+        currentImage = img;
+        updateSuggestions();
+        renderHalftone();
+      };
+      img.src = sourceCanvas.toDataURL('image/png');
+    }
+
+    function loadImageFromFile(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          currentImage = img;
+          drawSourceImage();
+          updateSuggestions();
+          renderHalftone();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function drawSourceImage() {
+      if (!currentImage) return;
+      const dims = fitDimensions(currentImage.width, currentImage.height, Number(maxWidth.value));
+      sourceCanvas.width = dims.w;
+      sourceCanvas.height = dims.h;
+      setCanvasBinaryFriendly(sctx);
+      sctx.clearRect(0, 0, dims.w, dims.h);
+      sctx.drawImage(currentImage, 0, 0, dims.w, dims.h);
+    }
+
+    function luminanceFromRGBA(r, g, b, a, alphaToWhite) {
+      if (alphaToWhite && a < 255) {
+        const af = a / 255;
+        r = 255 * (1 - af) + r * af;
+        g = 255 * (1 - af) + g * af;
+        b = 255 * (1 - af) + b * af;
+      }
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    }
+
+    function toneAtPixel(px, py, src, w, h, gam, alphaToWhite) {
+      if (px < 0 || py < 0 || px >= w || py >= h) return 1;
+      const i = (Math.floor(py) * w + Math.floor(px)) * 4;
+      const lum = luminanceFromRGBA(src[i], src[i+1], src[i+2], src[i+3], alphaToWhite);
+      let tone = lum / 255;
+      tone = Math.pow(tone, gam);
+      return tone;
+    }
+
+    function rotateToScreen(x, y, cx, cy, theta) {
+      const dx = x - cx;
+      const dy = y - cy;
+      const c = Math.cos(theta);
+      const s = Math.sin(theta);
+      return { x: dx * c + dy * s, y: -dx * s + dy * c };
+    }
+
+    function rotateFromScreen(u, v, cx, cy, theta) {
+      const c = Math.cos(theta);
+      const s = Math.sin(theta);
+      return { x: cx + u * c - v * s, y: cy + u * s + v * c };
+    }
+
+    function hash2(x, y, seed) {
+      const n = Math.sin((x * 127.1 + y * 311.7 + seed * 74.7)) * 43758.5453123;
+      return n - Math.floor(n);
+    }
+
+    function drawDot(ctx, cx, cy, r, dotShape, theta) {
+      if (r <= 0.01) return 0;
+      if (dotShape === 'circle') {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+        return Math.PI * r * r;
+      }
+      if (dotShape === 'square') {
+        const s = Math.sqrt(Math.PI) * r;
+        ctx.fillRect(cx - s / 2, cy - s / 2, s, s);
+        return s * s;
+      }
+      const d = Math.sqrt(2 * Math.PI) * r;
+      const c = Math.cos(theta);
+      const s = Math.sin(theta);
+      ctx.beginPath();
+      ctx.moveTo(cx + 0 * c - (-d/2) * s, cy + 0 * s + (-d/2) * c);
+      ctx.lineTo(cx + (d/2) * c, cy + (d/2) * s);
+      ctx.lineTo(cx + 0 * c - (d/2) * s, cy + 0 * s + (d/2) * c);
+      ctx.lineTo(cx + (-d/2) * c, cy + (-d/2) * s);
+      ctx.closePath();
+      ctx.fill();
+      return d * d / 2;
+    }
+
+    function renderAM(src, w, h, theta, gam, alphaToWhite) {
+      const cell = Math.max(1, Number(cellSize.value));
+      const minDotFrac = Number(minDot.value) / 100;
+      const cx0 = w / 2;
+      const cy0 = h / 2;
+      let blackCoverage = 0;
+
+      const corners = [
+        rotateToScreen(0, 0, cx0, cy0, theta),
+        rotateToScreen(w, 0, cx0, cy0, theta),
+        rotateToScreen(0, h, cx0, cy0, theta),
+        rotateToScreen(w, h, cx0, cy0, theta)
+      ];
+      const uMin = Math.min(...corners.map(p => p.x));
+      const uMax = Math.max(...corners.map(p => p.x));
+      const vMin = Math.min(...corners.map(p => p.y));
+      const vMax = Math.max(...corners.map(p => p.y));
+
+      for (let v = Math.floor(vMin / cell) * cell; v <= vMax; v += cell) {
+        for (let u = Math.floor(uMin / cell) * cell; u <= uMax; u += cell) {
+          const uMid = u + cell / 2;
+          const vMid = v + cell / 2;
+          let sum = 0;
+          let count = 0;
+          const sub = Math.max(2, Math.min(6, Math.round(cell / 2)));
+
+          for (let j = 0; j < sub; j++) {
+            for (let i = 0; i < sub; i++) {
+              const su = u + (i + 0.5) * cell / sub;
+              const sv = v + (j + 0.5) * cell / sub;
+              const p = rotateFromScreen(su, sv, cx0, cy0, theta);
+              if (p.x >= 0 && p.x < w && p.y >= 0 && p.y < h) {
+                sum += toneAtPixel(p.x, p.y, src, w, h, gam, alphaToWhite);
+                count++;
+              }
+            }
+          }
+          if (count === 0) continue;
+
+          let darkness = 1 - (sum / count);
+          if (invert.checked) darkness = 1 - darkness;
+          if (darkness <= 0) continue;
+
+          const radiusFrac = Math.sqrt(Math.max(0, darkness));
+          if (radiusFrac < minDotFrac) continue;
+
+          const pCentre = rotateFromScreen(uMid, vMid, cx0, cy0, theta);
+          const r = 0.5 * cell * radiusFrac;
+          blackCoverage += drawDot(octx, pCentre.x, pCentre.y, r, shape.value, theta);
+        }
+      }
+
+      return blackCoverage;
+    }
+
+    function renderFM(src, w, h, theta, gam, alphaToWhite, blueNoiseMode) {
+      const spacing = Math.max(2, Number(cellSize.value));
+      const minDotFrac = Number(minDot.value) / 100;
+      const jitterFrac = Number(jitter.value) / 100;
+      const cx0 = w / 2;
+      const cy0 = h / 2;
+      let blackCoverage = 0;
+
+      const corners = [
+        rotateToScreen(0, 0, cx0, cy0, theta),
+        rotateToScreen(w, 0, cx0, cy0, theta),
+        rotateToScreen(0, h, cx0, cy0, theta),
+        rotateToScreen(w, h, cx0, cy0, theta)
+      ];
+      const uMin = Math.min(...corners.map(p => p.x));
+      const uMax = Math.max(...corners.map(p => p.x));
+      const vMin = Math.min(...corners.map(p => p.y));
+      const vMax = Math.max(...corners.map(p => p.y));
+
+      const dotRadius = Math.max(0.7, 0.34 * spacing);
+      const minRadius = dotRadius * minDotFrac;
+      const occupied = [];
+      const minDist = blueNoiseMode ? spacing * (0.75 - 0.30 * jitterFrac) : spacing * 0.35;
+
+      for (let v = Math.floor(vMin / spacing) * spacing; v <= vMax; v += spacing) {
+        for (let u = Math.floor(uMin / spacing) * spacing; u <= uMax; u += spacing) {
+          const jx = (hash2(u, v, 1) - 0.5) * 2 * spacing * 0.45 * jitterFrac;
+          const jy = (hash2(u, v, 2) - 0.5) * 2 * spacing * 0.45 * jitterFrac;
+          const uu = u + spacing / 2 + jx;
+          const vv = v + spacing / 2 + jy;
+          const p = rotateFromScreen(uu, vv, cx0, cy0, theta);
+
+          if (p.x < 0 || p.x >= w || p.y < 0 || p.y >= h) continue;
+
+          let darkness = 1 - toneAtPixel(p.x, p.y, src, w, h, gam, alphaToWhite);
+          if (invert.checked) darkness = 1 - darkness;
+          darkness = Math.max(0, Math.min(1, darkness));
+          if (darkness <= 0) continue;
+
+          let threshold;
+          if (blueNoiseMode) {
+            const n1 = hash2(u * 0.73, v * 0.91, 5);
+            const n2 = hash2(u * 1.37 + 17, v * 1.11 + 9, 9);
+            threshold = 0.55 * n1 + 0.45 * n2;
+          } else {
+            threshold = hash2(u, v, 7);
+          }
+
+          if (darkness < threshold) continue;
+
+          if (blueNoiseMode) {
+            let tooClose = false;
+            for (const q of occupied) {
+              const dx = p.x - q.x;
+              const dy = p.y - q.y;
+              if (dx * dx + dy * dy < minDist * minDist) { tooClose = true; break; }
+            }
+            if (tooClose) continue;
+          }
+
+          const localRadius = blueNoiseMode
+            ? Math.max(minRadius, dotRadius * (0.85 + 0.30 * hash2(u, v, 12)))
+            : Math.max(minRadius, dotRadius * (0.85 + 0.25 * hash2(u, v, 11)));
+
+          blackCoverage += drawDot(octx, p.x, p.y, localRadius, shape.value, theta);
+          if (blueNoiseMode) occupied.push({ x: p.x, y: p.y });
+        }
+      }
+      return blackCoverage;
+    }
+
+    function computeSuggestion() {
+      if (!currentImage) return null;
+
+      const pxW = currentImage.width;
+      const pxH = currentImage.height;
+      const aspect = pxW / pxH;
+
+      let heightCm, widthCm;
+      const entered = Math.max(0.1, Number(targetHeightCm.value) || 18);
+
+      if (sizeMode.value === 'height') {
+        heightCm = entered;
+        widthCm = heightCm * aspect;
+      } else {
+        widthCm = entered;
+        heightCm = widthCm / aspect;
+      }
+
+      const meshRaw = Math.max(1, Number(meshValue.value) || 120);
+      const meshTcm = meshUnit.value === 'tcm' ? meshRaw : meshRaw / 2.54;
+      const pxPerCm = pxH / heightCm;
+
+      let divisorRange, suggestedMode, suggestedMinDot, suggestedJitter;
+      if (safetyMode.value === 'robust') {
+        divisorRange = [5.0, 4.0];
+        suggestedMode = 'am';
+        suggestedMinDot = 10;
+        suggestedJitter = 20;
+      } else if (safetyMode.value === 'balanced') {
+        divisorRange = [4.5, 3.8];
+        suggestedMode = 'am';
+        suggestedMinDot = 8;
+        suggestedJitter = 30;
+      } else {
+        divisorRange = [4.0, 3.2];
+        suggestedMode = 'am';
+        suggestedMinDot = 5;
+        suggestedJitter = 40;
+      }
+
+      const lcmMin = meshTcm / divisorRange[0];
+      const lcmMax = meshTcm / divisorRange[1];
+      const lcmRec = 0.5 * (lcmMin + lcmMax);
+
+      let cellPx = pxPerCm / lcmRec;
+      cellPx = Math.max(2, Math.round(cellPx));
+
+      const pixelPitchUm = (10000 / pxPerCm);
+      const cellUm = cellPx * pixelPitchUm;
+
+      return {
+        pxW, pxH, aspect, widthCm, heightCm, meshTcm, pxPerCm,
+        lcmMin, lcmMax, lcmRec, cellPx, cellUm, pixelPitchUm,
+        suggestedMode, suggestedMinDot, suggestedJitter
+      };
+    }
+
+    function updateSuggestions() {
+      currentSuggestion = computeSuggestion();
+      if (!currentSuggestion) {
+        suggestionBox.innerHTML = 'Upload an image to generate recommended screening values.';
+        return;
+      }
+
+      const s = currentSuggestion;
+      suggestionBox.innerHTML =
+        `<strong>Suggested print setup</strong><br>` +
+        `Image size: <strong>${s.widthCm.toFixed(2)} × ${s.heightCm.toFixed(2)} cm</strong><br>` +
+        `Image sampling: <strong>${s.pxPerCm.toFixed(1)} px/cm</strong>, so <strong>1 px ≈ ${s.pixelPitchUm.toFixed(0)} µm</strong><br>` +
+        `Mesh converted to: <strong>${s.meshTcm.toFixed(1)} t/cm</strong><br>` +
+        `Suggested halftone: <strong>${s.lcmMin.toFixed(1)} to ${s.lcmMax.toFixed(1)} l/cm</strong><br>` +
+        `Recommended working value: <strong>${s.lcmRec.toFixed(1)} l/cm</strong><br>` +
+        `Recommended cell / spacing: <strong>${s.cellPx} px</strong>, which is about <strong>${s.cellUm.toFixed(0)} µm</strong><br>` +
+        `Recommended mode: <strong>${s.suggestedMode.toUpperCase()}</strong>`;
+    }
+
+    function applySuggestion() {
+      if (!currentSuggestion) return;
+      screenMode.value = currentSuggestion.suggestedMode;
+      cellSize.value = currentSuggestion.cellPx;
+      minDot.value = currentSuggestion.suggestedMinDot;
+      jitter.value = currentSuggestion.suggestedJitter;
+      if (safetyMode.value === 'robust') angle.value = '45';
+      updateLabels();
+      renderHalftone();
+    }
+
+    function renderHalftone() {
+      if (!currentImage) {
+        drawSampleImage();
+        return;
+      }
+
+      drawSourceImage();
+      const w = sourceCanvas.width;
+      const h = sourceCanvas.height;
+      outputCanvas.width = w;
+      outputCanvas.height = h;
+
+      setCanvasBinaryFriendly(octx);
+      octx.fillStyle = invert.checked ? '#000000' : '#ffffff';
+      octx.fillRect(0, 0, w, h);
+
+      const src = sctx.getImageData(0, 0, w, h).data;
+      const gam = Number(gamma.value);
+      const theta = Number(angle.value) * Math.PI / 180;
+      const alphaToWhite = useAlphaWhite.checked;
+
+      octx.save();
+      octx.fillStyle = invert.checked ? '#ffffff' : '#000000';
+
+      let blackCoverage = 0;
+      if (screenMode.value === 'am') {
+        blackCoverage = renderAM(src, w, h, theta, gam, alphaToWhite);
+      } else if (screenMode.value === 'fm') {
+        blackCoverage = renderFM(src, w, h, theta, gam, alphaToWhite, false);
+      } else {
+        blackCoverage = renderFM(src, w, h, theta, gam, alphaToWhite, true);
+      }
+
+      octx.restore();
+
+      const coveragePct = Math.max(0, Math.min(100, 100 * blackCoverage / (w * h)));
+      let physicalText = '';
+      if (currentSuggestion) {
+        physicalText = ` Estimated print size: <strong>${currentSuggestion.widthCm.toFixed(2)} × ${currentSuggestion.heightCm.toFixed(2)} cm</strong>.`;
+      }
+
+      status.innerHTML =
+        `Rendered <strong>${w} × ${h}</strong> binary mask using <strong>${screenMode.options[screenMode.selectedIndex].text}</strong>. ` +
+        `Spacing: <strong>${cellSize.value}</strong> px. Estimated black coverage: <strong>${coveragePct.toFixed(1)}%</strong>.` +
+        physicalText;
+    }
+
+    function downloadOutput() {
+      if (!outputCanvas.width || !outputCanvas.height) return;
+      const link = document.createElement('a');
+      link.download = 'screenprint_halftone_mask_v3.png';
+      link.href = outputCanvas.toDataURL('image/png');
+      link.click();
+    }
+
+    upload.addEventListener('change', e => {
+      const file = e.target.files && e.target.files[0];
+      if (file) loadImageFromFile(file);
+    });
+
+    [screenMode, targetHeightCm, sizeMode, meshValue, meshUnit, safetyMode,
+     cellSize, gamma, minDot, shape, angle, jitter, maxWidth, invert, useAlphaWhite].forEach(el => {
+      el.addEventListener('input', () => {
+        updateLabels();
+        updateSuggestions();
+        if (currentImage) renderHalftone();
+      });
+      el.addEventListener('change', () => {
+        updateLabels();
+        updateSuggestions();
+        if (currentImage) renderHalftone();
+      });
+    });
+
+    applySuggestedBtn.addEventListener('click', applySuggestion);
+    renderBtn.addEventListener('click', renderHalftone);
+    downloadBtn.addEventListener('click', downloadOutput);
+    resetBtn.addEventListener('click', () => {
+      upload.value = '';
+      drawSampleImage();
+    });
+
+    updateLabels();
+    drawSampleImage();
+  </script>
+</body>
+</html>
